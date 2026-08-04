@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Docket">
+<meta name="theme-color" content="#16213e">
+<meta name="robots" content="noindex,nofollow">
+<title>Docket — Task &amp; Case Console</title>
+<style>
+:root{
+  --ink:#16213e; --ink-2:#3b4763; --paper:#eceef3; --card:#ffffff; --line:#d9dde6;
+  --seal:#7c1f2b; --steel:#2b5f75; --ok:#1f6b4a; --warn:#9a6410; --crit:#a3212f;
+  --shadow:0 1px 2px rgba(22,33,62,.06),0 8px 24px rgba(22,33,62,.06);
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.01em;margin:0}
+a{color:var(--steel)}
+.mono{font-family:var(--mono)}
+.wrap{max-width:1040px;margin:0 auto;padding:0 14px 96px}
+
+/* Masthead */
+header.top{background:var(--ink);color:#fff;position:sticky;top:0;z-index:40;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.top-in{max-width:1040px;margin:0 auto;padding:10px 14px;display:flex;align-items:center;gap:12px}
+.brand{font-family:var(--serif);font-size:19px;letter-spacing:.02em}
+.brand span{color:#c9a25a}
+.clock{margin-left:auto;font-family:var(--mono);font-size:12px;color:#b9c2d6;text-align:right;line-height:1.25}
+.who{display:flex;align-items:center;gap:8px}
+.avatar{width:30px;height:30px;border-radius:50%;background:#c9a25a;color:var(--ink);display:grid;place-items:center;font-weight:700;font-size:13px;font-family:var(--sans)}
+nav.tabs{background:#1e2b4d;overflow-x:auto;position:sticky;top:52px;z-index:39;-webkit-overflow-scrolling:touch}
+nav.tabs .n{max-width:1040px;margin:0 auto;display:flex;gap:2px;padding:0 8px;white-space:nowrap}
+nav.tabs button{background:none;border:0;color:#aab4cd;padding:11px 12px;font-size:13px;font-family:var(--sans);cursor:pointer;border-bottom:2px solid transparent}
+nav.tabs button.on{color:#fff;border-bottom-color:#c9a25a}
+nav.tabs .pill{background:var(--seal);color:#fff;border-radius:9px;padding:0 6px;font-size:11px;margin-left:5px;font-family:var(--mono)}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);margin:14px 0;overflow:hidden}
+.card .pad{padding:14px}
+.sec-head{display:flex;align-items:baseline;gap:10px;margin:22px 0 4px}
+.sec-head h2{font-size:20px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.muted{color:var(--ink-2)}
+.small{font-size:13px}
+.tiny{font-size:11.5px}
+
+/* Docket strip = signature element */
+.docket{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);margin:10px 0;overflow:hidden;cursor:pointer}
+.docket:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
+.spine{width:7px;flex:0 0 7px;background:var(--ink-2)}
+.spine.Low{background:#9aa4bb}.spine.Medium{background:var(--steel)}
+.spine.High{background:var(--warn)}.spine.Critical{background:var(--crit)}
+.docket .body{padding:11px 12px;flex:1;min-width:0}
+.docket .no{font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.06em}
+.docket h3{font-size:16px;margin:2px 0 4px;line-height:1.25}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tag{font-size:11px;font-family:var(--mono);padding:2px 7px;border-radius:4px;background:#eef1f6;color:var(--ink-2);border:1px solid var(--line)}
+.tag.st-Completed{background:#e6f2ec;color:var(--ok);border-color:#bfdfd0}
+.tag.st-InProgress{background:#e7eef3;color:var(--steel);border-color:#c6d9e3}
+.tag.st-Blocked{background:#fbe9ea;color:var(--crit);border-color:#f0c9cc}
+.tag.st-NotStarted{background:#f1f2f5}
+.tag.st-Awaitinginput{background:#fbf1e0;color:var(--warn);border-color:#eddcbc}
+.tag.st-Reassigned{background:#efe9f5;color:#5b3f86;border-color:#dbcfe9}
+.tag.due{background:var(--seal);color:#fff;border-color:var(--seal)}
+.tag.overdue{background:var(--crit);color:#fff;border-color:var(--crit)}
+.tag.hear{background:#1e2b4d;color:#fff;border-color:#1e2b4d}
+
+/* Forms */
+label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:12px 0 4px;letter-spacing:.01em}
+label .req{color:var(--seal)}
+input,select,textarea{width:100%;font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:#fbfcfd;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--steel);outline-offset:0;background:#fff}
+textarea{min-height:70px;resize:vertical}
+input[readonly]{background:#f0f2f6;color:var(--ink-2)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media(max-width:640px){.grid2{grid-template-columns:1fr}}
+.checks{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.chk{display:flex;align-items:center;gap:6px;font-size:13px;background:#f5f7fa;border:1px solid var(--line);padding:6px 10px;border-radius:20px;cursor:pointer;font-weight:500;color:var(--ink)}
+.chk input{width:auto;padding:0;margin:0}
+.chk.on{background:#e7eef3;border-color:var(--steel)}
+button.btn{font:inherit;font-size:14px;font-weight:600;padding:10px 16px;border-radius:7px;border:1px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer}
+button.btn.ghost{background:#fff;color:var(--ink)}
+button.btn.seal{background:var(--seal);border-color:var(--seal)}
+button.btn.sm{padding:6px 11px;font-size:13px}
+button.btn:disabled{opacity:.5}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.banner{border-radius:9px;padding:11px 13px;margin:12px 0;font-size:14px;border:1px solid}
+.banner.warn{background:#fdf4e3;border-color:#e8d3a8;color:#6d4a0d}
+.banner.crit{background:#fbeaec;border-color:#eec4c9;color:#7d1a25}
+.banner.ok{background:#e8f3ed;border-color:#c2ddcf;color:#17553a}
+.kv{display:grid;grid-template-columns:132px 1fr;gap:4px 10px;font-size:13.5px;margin:8px 0}
+.kv .k{color:var(--ink-2);font-size:12px;padding-top:2px}
+.log{border-left:2px solid var(--line);margin:8px 0 0;padding-left:12px}
+.log .e{margin-bottom:14px}
+.log .e .st{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.thumb{width:100%;max-width:320px;border-radius:8px;border:1px solid var(--line);display:block;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2)}
+.stat{display:flex;gap:0;flex-wrap:wrap}
+.stat div{flex:1;min-width:88px;padding:12px;border-right:1px solid var(--line)}
+.stat div:last-child{border-right:0}
+.stat b{display:block;font-family:var(--serif);font-size:26px;line-height:1}
+.stat span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2)}
+.sheet{position:fixed;inset:0;background:rgba(10,15,30,.5);z-index:60;display:flex;align-items:flex-end;justify-content:center}
+.sheet .inner{background:var(--paper);width:100%;max-width:720px;max-height:94vh;overflow:auto;border-radius:14px 14px 0 0;padding:16px 14px 40px}
+@media(min-width:720px){.sheet{align-items:center}.sheet .inner{border-radius:14px;max-height:88vh}}
+.sheet .bar{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.sheet .bar button{margin-left:auto}
+video,canvas.cap{width:100%;border-radius:8px;background:#111;display:block}
+.hide{display:none!important}
+.center{text-align:center;padding:34px 12px;color:var(--ink-2)}
+.footnote{font-size:11.5px;color:var(--ink-2);margin-top:6px}
+hr{border:0;border-top:1px solid var(--line);margin:16px 0}
+::-webkit-scrollbar{height:6px;width:6px}::-webkit-scrollbar-thumb{background:#c3c9d6;border-radius:3px}
+@media (prefers-reduced-motion:no-preference){.docket{transition:transform .12s ease}.docket:active{transform:scale(.995)}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">DOCKET<span>·</span>console</div>
+    <div class="clock" id="clock">—</div>
+  </div>
+</header>
+<nav class="tabs" id="tabs"><div class="n"></div></nav>
+<div class="wrap" id="app"><div class="center">Loading…</div></div>
+<div id="sheet"></div>
+
+<script>
+"use strict";
+/* ============================ server link ============================ */
+let PIN="", TOKEN="", SKEW=0, LINKERR="", MEDIA={};
+
+async function call(path,opts){
+  const o=Object.assign({headers:{}},opts||{});
+  o.headers["content-type"]="application/json";
+  if(TOKEN)o.headers.authorization="Bearer "+TOKEN;
+  let r;
+  try{r=await fetch(path,o)}
+  catch(e){LINKERR="No connection.";throw new Error("No connection. Check your signal and try again.")}
+  let j={}, raw="";
+  try{raw=await r.text(); j=raw?JSON.parse(raw):{}}catch(e){}
+  if(j&&j.serverNow)SKEW=new Date(j.serverNow).getTime()-Date.now();
+  if(r.status===401){TOKEN="";clearCreds();throw new Error(j.error||"Your session has expired. Sign in again.")}
+  if(!r.ok&&!j.conflict){
+    /* a crashed function returns HTML, not JSON — show whatever it did say */
+    const plain=raw.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,240);
+    LINKERR=j.error||(plain?("The server said "+r.status+": "+plain):("The server said "+r.status));
+    throw new Error(LINKERR);
+  }
+  LINKERR="";
+  return j;
+}
+
+/** The same call shape the console has always used, now over HTTP. */
+async function api(action,payload){
+  const p=payload||{};
+  switch(action){
+    case "bootstrap": return call("/api/docket?action=staff");
+    case "signIn": {
+      const r=await call("/api/docket",{method:"POST",body:JSON.stringify({action:"signIn",who:p.who||ME,pin:p.pin})});
+      TOKEN=r.token; return r;
+    }
+    case "load": return call("/api/docket?action=board");
+    case "save": return call("/api/docket",{method:"POST",body:JSON.stringify({action:"save",data:p.data,expectRev:p.expectRev})});
+    case "setPin": return call("/api/docket",{method:"POST",body:JSON.stringify(Object.assign({action:"setPin"},p))});
+    case "savePhoto": return call("/api/docket",{method:"POST",body:JSON.stringify({action:"media",dataUrl:p.dataUrl,kind:p.kind||"photo"})});
+    case "saveVoice": {
+      let id="";
+      if(p.dataUrl){const r=await call("/api/docket",{method:"POST",body:JSON.stringify({action:"media",dataUrl:p.dataUrl,kind:"voice"})});id=r.id}
+      return {ok:true,id,doc:""};
+    }
+    case "media": return call("/api/docket?action=media&id="+encodeURIComponent(p.id));
+    case "sendReminders": return call("/api/docket",{method:"POST",body:JSON.stringify({action:"reminders"})});
+  }
+  throw new Error("Unknown action: "+action);
+}
+
+function saveCreds(){try{localStorage.setItem("docket:session",JSON.stringify({id:ME,token:TOKEN}))}catch(e){}}
+function readCreds(){try{const v=localStorage.getItem("docket:session");return v?JSON.parse(v):null}catch(e){return null}}
+function clearCreds(){try{localStorage.removeItem("docket:session")}catch(e){}}
+async function refresh(){const r=await api("load");CORE=r.data;CORE.rev=r.rev;return CORE}
+
+/* ============================ seed ============================ */
+const ROLES=["Owner","Legal","Documentation","Accounts","Executive","Admin","Engineer"];
+
+const TYPES=["General","Legal case","Field visit","Documentation","Accounts","Engineering","Admin"];
+const STATUSES=["Not started","In progress","Awaiting input","Blocked","Completed"];
+const CRIT=["Low","Medium","High","Critical"];
+function fresh(){return{v:2,rev:0,seq:0,staff:[],tasks:[],att:[],notes:[],
+ settings:{eod:"18:30",officeName:"Office",reminderHour:"09:00",shiftStart:"09:30",dial:"91",contactsV1:true}}}
+
+function dial(v){const d=String(v||"").replace(/\D/g,"");if(!d)return"";return d.length===10?(CORE.settings.dial||"91")+d:d}
+
+/* ============================ time (live only) ============================ */
+const now=()=>new Date(Date.now()+SKEW);   /* office clock, not the phone clock */
+const iso=d=>d.toISOString();
+const pad=n=>String(n).padStart(2,"0");
+function dstr(d){d=new Date(d);return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
+function tstr(d){d=new Date(d);return pad(d.getHours())+":"+pad(d.getMinutes())}
+function fmt(d){if(!d)return"—";d=new Date(d);return d.toLocaleString(undefined,{day:"2-digit",month:"short",year:"2-digit",hour:"2-digit",minute:"2-digit"})}
+function fmtd(d){if(!d)return"—";const x=new Date(d+(String(d).length===10?"T00:00:00":""));return x.toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"})}
+const today=()=>dstr(now());
+function daysTo(dateStr){if(!dateStr)return null;const a=new Date(today()+"T00:00:00"),b=new Date(dateStr+"T00:00:00");return Math.round((b-a)/864e5)}
+function eodLeft(){const[h,m]=(CORE.settings.eod||"18:30").split(":").map(Number);const e=new Date();e.setHours(h,m,0,0);let ms=e-now();if(ms<0)return null;return Math.floor(ms/36e5)+"h "+Math.floor(ms%36e5/6e4)+"m"}
+
+/* ============================ state ============================ */
+let CORE=fresh(), ME=null, VIEW="today", EDITING=false, VFILTER="", FILTER={q:"",who:"",status:"",type:"",prop:""};
+const byId=id=>CORE.staff.find(s=>s.id===id);
+const nameOf=id=>(byId(id)||{name:"—"}).name;
+const isOwner=()=>ME&&byId(ME)&&byId(ME).role==="Owner";
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const nl=s=>esc(s).replace(/\n/g,"<br>");
+
+/* ============================ derived ============================ */
+function lastUpdate(t){return t.log.length?t.log[t.log.length-1]:null}
+function updatedToday(t){const l=lastUpdate(t);return !!l&&dstr(l.at)===today()}
+function open_(t){return t.status!=="Completed"}
+function needsEOD(t){return open_(t)&&!updatedToday(t)}
+function followDue(t){return open_(t)&&t.followUp&&daysTo(t.followUp)<=0}
+function overdue(t){return open_(t)&&t.deadline&&daysTo(t.deadline)<0}
+function hearingSoon(t,d=7){const h=t.case&&t.case.nextHearing;if(!h||!open_(t))return false;const n=daysTo(h);return n!==null&&n>=0&&n<=d}
+function mine(t){return t.assignee===ME}
+function visible(t){return isOwner()||t.assignee===ME||t.assigner===ME||(t.history||[]).includes(ME)}
+function tasksFor(u){return CORE.tasks.filter(t=>t.assignee===u)}
+function attFor(uid,day){return (CORE.att||[]).filter(a=>a.by===uid&&dstr(a.at)===day).sort((x,y)=>new Date(x.at)-new Date(y.at))}
+function attSummary(uid,day){const a=attFor(uid,day);let ms=0,open=null;
+  a.forEach(e=>{if(e.kind==="in"){if(!open)open=new Date(e.at)}else if(open){ms+=new Date(e.at)-open;open=null}});
+  if(open&&day===today())ms+=now()-open;
+  return {events:a,inAt:(a.find(e=>e.kind==="in")||{}).at,outAt:(a.slice().reverse().find(e=>e.kind==="out")||{}).at,
+    hours:ms?(ms/36e5).toFixed(2):"",inside:!!open,last:a.length?a[a.length-1].kind:null}}
+function lateBy(uid){const su=attSummary(uid,today());if(!su.inAt)return null;
+  const[h,m]=(CORE.settings.shiftStart||"09:30").split(":").map(Number);const d=new Date(su.inAt);
+  const mins=(d.getHours()*60+d.getMinutes())-(h*60+m);return mins>5?mins:null}
+const DEF_PROPS=["Digital Zone","Fortune Greens","Kelly's Court","Revanza Leasing India Private Limited","Thoraipakkam","Others"];
+function props(){const p=(CORE.settings&&CORE.settings.properties)||[];return p.length?p:DEF_PROPS}
+function propOptions(sel){return props().map(x=>`<option ${x===sel?"selected":""}>${esc(x)}</option>`).join("")}
+function stages(t){return t.stages||[]}
+function nextStage(t){return stages(t).filter(x=>!x.done)[0]||null}
+function stageOverdue(t){const x=nextStage(t);return !!(open_(t)&&x&&x.due&&daysTo(x.due)<0)}
+function stageDueToday(t){const x=nextStage(t);return !!(open_(t)&&x&&x.due&&daysTo(x.due)===0)}
+function stageLabel(t){const x=nextStage(t);if(!x)return "";
+  const d=x.due?daysTo(x.due):null;
+  return x.n+(x.due?" · "+(d<0?(-d)+"d late":d===0?"today":fmtd(x.due)):"")}
+function voiceStats(uid){const n=notesFor(uid);
+  const sec=n.reduce((a,b)=>a+(Number(b.dur)||0),0);
+  return {count:n.length,sec,mins:sec/60,last:n.length?n[0].at:""}}
+function notesFor(uid){return (CORE.notes||[]).filter(n=>n.by===uid).sort((a,b)=>new Date(b.at)-new Date(a.at))}
+
+/* deadline given & not yet reached → a short "in progress + comment" update is enough */
+function lightMode(t){return !!t.deadline&&daysTo(t.deadline)>0}
+
+/* ============================ boot ============================ */
+(async function boot(){
+  tick(); setInterval(tick,1000);
+  try{const bs=await api("bootstrap");CORE.staff=bs.staff}
+  catch(e){LINKERR=e.message; setTimeout(selfTest,50)}
+  const saved=readCreds();
+  if(saved&&saved.token){ME=saved.id;TOKEN=saved.token;
+    try{await refresh()}catch(e){ME=null;TOKEN="";clearCreds()}}
+  render();
+  setInterval(sync,30000);
+})();
+function tick(){
+  const d=now();
+  const ac=document.getElementById("attClock"); if(ac)ac.textContent=fmt(d);
+  const cl=document.getElementById("clock");
+  if(cl)cl.innerHTML=d.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit",second:"2-digit"})+"<br>"+d.toLocaleDateString(undefined,{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
+}
+async function sync(){
+  if(EDITING||!ME||document.getElementById("sheet").innerHTML)return;
+  try{const before=CORE.rev;await refresh();if(CORE.rev!==before)render()}catch(e){render()}
+}
+async function mutate(fn){
+  if(!ME)return;
+  for(let i=0;i<3;i++){
+    let cur; try{cur=await api("load")}catch(e){toast(e.message);return}
+    const c=cur.data; c.rev=cur.rev; fn(c);
+    let r; try{r=await api("save",{data:c,expectRev:cur.rev})}catch(e){toast(e.message);return}
+    if(r.ok){CORE=r.data;CORE.rev=r.rev;render();return true}
+    await new Promise(res=>setTimeout(res,400));
+  }
+  toast("Someone else saved at the same moment. Try once more.");
+}
+function toast(msg,kind){ const s=document.getElementById("sheet");
+  const d=document.createElement("div");
+  d.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:"+(kind==="ok"?"#1f6b4a":"#16213e")+";color:#fff;padding:11px 16px;border-radius:8px;z-index:99;font-size:14px;max-width:90vw;box-shadow:0 6px 24px rgba(0,0,0,.3)";
+  d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),3200);
+}
+
+/* ============================ chrome ============================ */
+const TABS=()=>{
+  const t=[["today","Today"],["att","Attendance"],["mine","My tasks"],["all","All tasks"],["voice","Voice notes"],["hear","Hearings"],["photos","Photo log"]];
+  if(isOwner())t.push(["team","Team"],["mail","Reminders"],["audit","Audit"],["setup","Setup"]);
+  else t.push(["mail","Reminders"]);
+  return t;
+};
+function renderTabs(){
+  const n=document.querySelector("#tabs .n"); if(!ME){n.innerHTML="";return}
+  const pend=CORE.tasks.filter(t=>visible(t)&&(isOwner()?needsEOD(t):mine(t)&&needsEOD(t))).length;
+  n.innerHTML=TABS().map(([k,l])=>`<button data-tab="${k}" class="${VIEW===k?"on":""}">${l}${k==="today"&&pend?`<span class="pill">${pend}</span>`:""}</button>`).join("");
+}
+document.getElementById("tabs").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(b){VIEW=b.dataset.tab;render();window.scrollTo(0,0)}});
+
+/* ============================ render ============================ */
+function render(){
+  renderTabs();
+  const app=document.getElementById("app");
+  if(!ME){app.innerHTML=offlineBanner()+signIn();return}
+  const v={today:vToday,att:vAtt,mine:vMine,all:vAll,voice:vVoice,hear:vHear,photos:vPhotos,team:vTeam,mail:vMail,audit:vAudit,setup:vSetup}[VIEW]||vToday;
+  app.innerHTML=offlineBanner()+v();
+  const me=byId(ME);
+  let w=document.getElementById("whoBox");
+  if(!w){w=document.createElement("div");w.id="whoBox";w.className="who";document.querySelector(".top-in").insertBefore(w,document.querySelector(".clock"))}
+  loadPhotos(); loadAudio();
+  w.innerHTML=`<div class="avatar">${esc(me.name[0])}</div><div style="font-size:12px;line-height:1.15">${esc(me.name)}<br><span style="color:#b9c2d6">${esc(me.role)}</span></div><button class="btn ghost sm" data-act="signout" style="margin-left:6px;padding:4px 8px">Switch</button>`;
+}
+let REPORT="";
+async function probe(path){
+  const out={path,status:0,ok:false,body:""};
+  try{
+    const r=await fetch(path,{headers:{accept:"application/json"}});
+    out.status=r.status; out.ok=r.ok;
+    const text=await r.text();
+    out.body=text.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,400);
+  }catch(e){ out.body="request failed: "+(e&&e.message) }
+  return out;
+}
+async function selfTest(){
+  const box=document.getElementById("selftest");
+  if(box)box.innerHTML=`<div class="small muted">Checking the server…</div>`;
+  const paths=["/api/ping","/api/diag","/api/auth"];
+  const results=[];
+  for(const p of paths)results.push(await probe(p));
+  REPORT=["Docket server report","console build 1.5.0","page "+location.href,new Date().toString(),""]
+    .concat(results.map(r=>`${r.path}  ->  HTTP ${r.status}\n${r.body||"(empty body)"}\n`)).join("\n");
+  if(!box)return;
+  box.innerHTML=`<div class="card pad" style="margin-top:10px">
+    <div class="eyebrow">Server report</div>
+    ${results.map(r=>`<div style="margin-top:8px">
+      <div class="small"><b>${esc(r.path)}</b> — <span style="color:${r.ok?"var(--ok)":"var(--crit)"}">HTTP ${r.status}</span></div>
+      <div class="tiny mono" style="background:#f7f8fb;border:1px solid var(--line);border-radius:6px;padding:7px;margin-top:4px;white-space:pre-wrap;word-break:break-word">${esc(r.body||"(empty body)")}</div>
+    </div>`).join("")}
+    <div class="btnrow"><button class="btn sm" data-act="copyreport">Copy this report</button></div>
+    <p class="footnote">Paste that into the chat and the cause can be fixed directly. Nothing here contains a password or a connection string.</p>
+  </div>`;
+}
+function offlineBanner(){
+  return LINKERR?`<div class="banner crit"><b>The office board didn't answer.</b><br>${esc(LINKERR)}<br>Your last action may not have been saved.<div class="btnrow"><button class="btn sm" data-act="reload">Reload</button><button class="btn ghost sm" data-act="selftest">Run a server check</button></div><div id="selftest"></div></div>`:"";
+}
+function signIn(){
+  return `<div class="sec-head"><h2>Who's working?</h2></div>
+  <p class="small muted">Pick your name, then enter your four-digit PIN. Everything you post is stamped with your name and the office clock.</p>
+  ${(CORE.staff||[]).map(x=>`<div class="docket" data-act="pick" data-id="${x.id}" tabindex="0"><div class="spine ${x.role==="Owner"?"Critical":"Medium"}"></div><div class="body"><div class="no">${esc(x.role.toUpperCase())}${x.note?" · "+esc(x.note):""}</div><h3>${esc(x.name)}</h3></div></div>`).join("")}
+  <p class="footnote">Forgotten your PIN? Sushil can reset it under Setup.</p>`;
+}
+function myPinSheet(force){
+  sheet(`<div class="bar"><h2 style="font-size:18px">${force?"Choose your own PIN":"Change my PIN"}</h2>${force?"":`<button class="btn ghost sm" data-act="close">Close</button>`}</div>
+  <div class="card pad">
+    ${force?`<div class="banner warn" style="margin-top:0">Sushil reset your PIN. Pick one only you know before you carry on.</div>`:""}
+    <label>New four-digit PIN</label><input id="m_pin" type="tel" inputmode="numeric" maxlength="4" placeholder="0000" style="font-size:24px;letter-spacing:.35em;text-align:center">
+    <label>Type it again</label><input id="m_pin2" type="tel" inputmode="numeric" maxlength="4" placeholder="0000" style="font-size:24px;letter-spacing:.35em;text-align:center">
+    <div class="btnrow"><button class="btn" data-act="savemypin">Save PIN</button>${force?"":`<button class="btn ghost" data-act="close">Cancel</button>`}</div>
+    <p class="footnote">Nobody sees your PIN, not even Sushil — he can only replace it.</p>
+  </div>`);
+}
+async function saveMyPin(){
+  const a=val("m_pin"), b=val("m_pin2");
+  if(!/^[0-9]{4}$/.test(a))return toast("Four digits, please.");
+  if(a!==b)return toast("The two don't match.");
+  if(a==="0000"||a==="1234")return toast("Pick something less obvious.");
+  try{const r=await api("setPin",{target:ME,newPin:a});CORE=r.data;CORE.rev=r.rev;closeSheet();render();toast("PIN changed","ok")}
+  catch(e){toast(e.message)}
+}
+function pinSheet(id){
+  const x=(CORE.staff||[]).find(y=>y.id===id)||{};
+  sheet(`<div class="bar"><h2 style="font-size:19px">${esc(x.name||"Sign in")}</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card pad">
+    <label>Your four-digit PIN</label>
+    <input id="p_pin" type="tel" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="0000" style="font-size:26px;letter-spacing:.35em;text-align:center">
+    <div class="btnrow"><button class="btn" data-act="dosignin" data-id="${id}">Sign in</button><button class="btn ghost" data-act="close">Cancel</button></div>
+    <p class="footnote">Your PIN starts as the last four digits of your mobile number.</p>
+  </div>`);
+  setTimeout(()=>{const e=document.getElementById("p_pin");if(e)e.focus()},150);
+}
+async function doSignIn(id){
+  const pin=val("p_pin");
+  if(!/^[0-9]{4}$/.test(pin))return toast("Four digits, please.");
+  const wasMe=ME, wasTok=TOKEN;
+  try{
+    const r=await api("signIn",{who:id,pin});
+    ME=id; TOKEN=r.token;
+    await refresh(); saveCreds(); closeSheet(); VIEW="today"; render();
+    if(r.user&&r.user.forcePin)myPinSheet(true); else toast("Welcome, "+nameOf(id),"ok");
+  }catch(e){ME=wasMe;TOKEN=wasTok;toast(e.message)}
+}
+
+/* -------- Today -------- */
+function vToday(){
+  const scope=CORE.tasks.filter(visible);
+  const my=isOwner()?scope:scope.filter(mine);
+  const pend=my.filter(needsEOD), foll=my.filter(followDue), od=my.filter(overdue), hs=my.filter(t=>hearingSoon(t));
+  const left=eodLeft();
+  let h=`<div class="sec-head"><span class="eyebrow">${new Date().toLocaleDateString(undefined,{weekday:"long"})}</span><h2>Day board</h2></div>`;
+  h+=`<div class="card"><div class="stat">
+    <div><b>${my.filter(open_).length}</b><span>Open</span></div>
+    <div><b style="color:${pend.length?"var(--seal)":"var(--ok)"}">${pend.length}</b><span>Update due</span></div>
+    <div><b style="color:${od.length?"var(--crit)":"inherit"}">${od.length}</b><span>Overdue</span></div>
+    <div><b style="color:${my.filter(stageOverdue).length?"var(--crit)":"inherit"}">${my.filter(t=>stageOverdue(t)||stageDueToday(t)).length}</b><span>Stages due</span></div>
+    <div><b>${foll.length}</b><span>Follow-ups</span></div>
+    <div><b>${hs.length}</b><span>Hearings ≤7d</span></div>
+  </div></div>`;
+  if(pend.length) h+=`<div class="banner ${left?"warn":"crit"}">${left?`<b>${pend.length} task${pend.length>1?"s":""} still need today's update.</b> Cut-off ${CORE.settings.eod} — ${left} left.`:`<b>Cut-off ${CORE.settings.eod} has passed.</b> ${pend.length} task${pend.length>1?"s are":" is"} without today's update. Post it now — it will be logged late.`}</div>`;
+  else h+=`<div class="banner ok">Every open task carries today's update. Nothing pending.</div>`;
+  const su=attSummary(ME,today());
+  h+=`<div class="card pad" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <div><div class="eyebrow">My attendance</div><div class="small">${su.inAt?`In ${tstr(su.inAt)}${su.outAt?` · Out ${tstr(su.outAt)}`:""}${su.hours?` · ${su.hours} h`:""}`:"Not marked today"}</div></div>
+    <div style="margin-left:auto" class="btnrow">${su.last!=="in"?`<button class="btn sm" data-act="markin">Mark entry</button>`:`<button class="btn sm seal" data-act="markout">Mark exit</button>`}</div></div>`;
+  if((byId(ME)||{}).forcePin)h+=`<div class="banner warn"><b>Your PIN was reset by Sushil.</b> Choose one only you know.<div class="btnrow"><button class="btn sm" data-act="mypin">Set my PIN</button></div></div>`;
+  h+=`<div class="btnrow"><button class="btn" data-act="new">Assign a task</button>${isOwner()?`<button class="btn ghost" data-act="tab" data-tab="mail">Build reminder emails</button>`:""}</div>`;
+  const grp=(title,arr,note)=>arr.length?`<div class="sec-head"><h2>${title}</h2><span class="eyebrow">${arr.length}</span></div>${note?`<p class="small muted" style="margin:0">${note}</p>`:""}${arr.map(card).join("")}`:"";
+  h+=grp("Update due today",pend,"Post status before the cut-off.");
+  h+=grp("Follow-up falls today",foll.filter(t=>!pend.includes(t)));
+  h+=grp("Past deadline",od.filter(t=>!pend.includes(t)&&!foll.includes(t)));
+  const sd=my.filter(t=>stageOverdue(t)||stageDueToday(t));
+  h+=grp("Stage due now",sd.filter(t=>!pend.includes(t)&&!od.includes(t)),"A step inside the task has reached its date.");
+  h+=grp("Hearing within 7 days",hs.filter(t=>!pend.includes(t)));
+  if(!my.length)h+=`<div class="center">No tasks yet. Use “Assign a task” to open the first docket.</div>`;
+  h+=`<p class="footnote" style="text-align:center;margin-top:20px"><a href="#" data-act="mypin">Change my PIN</a></p>`;
+  return h;
+}
+
+/* -------- lists -------- */
+function card(t){
+  const l=lastUpdate(t), st=t.status.replace(/\s/g,"");
+  const chips=[];
+  if(needsEOD(t))chips.push(`<span class="tag due">update due</span>`);
+  if(overdue(t))chips.push(`<span class="tag overdue">${-daysTo(t.deadline)}d overdue</span>`);
+  else if(t.deadline&&open_(t))chips.push(`<span class="tag">due ${fmtd(t.deadline)}</span>`);
+  if(followDue(t))chips.push(`<span class="tag due">follow-up</span>`);
+  else if(t.followUp&&open_(t))chips.push(`<span class="tag">f/u ${fmtd(t.followUp)}</span>`);
+  if(t.case&&t.case.nextHearing&&open_(t))chips.push(`<span class="tag hear">hearing ${fmtd(t.case.nextHearing)}</span>`);
+  if(nextStage(t)&&open_(t))chips.push(`<span class="tag ${stageOverdue(t)?"overdue":stageDueToday(t)?"due":""}">${esc(stageLabel(t))}</span>`);
+  return `<div class="docket" data-act="open" data-id="${t.id}" tabindex="0">
+    <div class="spine ${esc(t.priority)}"></div>
+    <div class="body">
+      <div class="no">${esc(t.no)}${t.property?" · "+esc(t.property):""} · ${esc(nameOf(t.assignee))}</div>
+      <h3>${esc(t.title)}</h3>
+      <div class="row"><span class="tag st-${esc(st)}">${esc(t.status)}</span>${chips.join("")}</div>
+      <div class="tiny muted" style="margin-top:5px">${l?`${esc(nameOf(l.by))} · ${fmt(l.at)}${l.comment?" · "+esc(l.comment.slice(0,70)):""}`:"No update yet · assigned "+fmt(t.createdAt)}</div>
+    </div></div>`;
+}
+function filters(){
+  return `<div class="card pad">
+   <input id="fq" placeholder="Search title, docket no., court, party" value="${esc(FILTER.q)}">
+   <div class="grid2">
+    <div><label>Assignee</label><select id="fwho"><option value="">Everyone</option>${CORE.staff.map(s=>`<option value="${s.id}" ${FILTER.who===s.id?"selected":""}>${esc(s.name)}</option>`).join("")}</select></div>
+    <div><label>Status</label><select id="fst"><option value="">Any status</option><option value="__open" ${FILTER.status==="__open"?"selected":""}>Open only</option>${STATUSES.map(s=>`<option ${FILTER.status===s?"selected":""}>${s}</option>`).join("")}</select></div>
+   </div>
+   <div class="grid2">
+    <div><label>Type</label><select id="ftp"><option value="">All types</option>${TYPES.map(s=>`<option ${FILTER.type===s?"selected":""}>${s}</option>`).join("")}</select></div>
+    <div><label>Property / company</label><select id="fpr"><option value="">Any property</option>${[...new Set(props().concat(CORE.tasks.map(t=>t.property).filter(Boolean)))].map(x=>`<option ${FILTER.prop===x?"selected":""}>${esc(x)}</option>`).join("")}</select></div>
+   </div>
+   <div class="btnrow"><button class="btn sm" data-act="applyfilter">Apply</button><button class="btn ghost sm" data-act="clearfilter">Clear</button><button class="btn ghost sm" data-act="csv">Export CSV</button></div>
+  </div>`;
+}
+function applyF(list){
+  let a=list.filter(visible);
+  if(FILTER.who)a=a.filter(t=>t.assignee===FILTER.who);
+  if(FILTER.status==="__open")a=a.filter(open_); else if(FILTER.status)a=a.filter(t=>t.status===FILTER.status);
+  if(FILTER.type)a=a.filter(t=>t.type===FILTER.type);
+  if(FILTER.prop)a=a.filter(t=>(t.property||"")===FILTER.prop);
+  if(FILTER.q){const q=FILTER.q.toLowerCase();a=a.filter(t=>JSON.stringify(t).toLowerCase().includes(q))}
+  return a.sort((x,y)=>(open_(y)-open_(x))||(CRIT.indexOf(y.priority)-CRIT.indexOf(x.priority))||(new Date(y.createdAt)-new Date(x.createdAt)));
+}
+function vMine(){
+  const a=applyF(CORE.tasks.filter(mine));
+  return `<div class="sec-head"><h2>My tasks</h2><span class="eyebrow">${a.length}</span></div>`+filters()+
+   `<div class="btnrow"><button class="btn" data-act="new">Assign a task</button></div>`+
+   (a.length?a.map(card).join(""):`<div class="center">Nothing assigned to you right now.</div>`);
+}
+function vAll(){
+  const a=applyF(CORE.tasks);
+  return `<div class="sec-head"><h2>All tasks</h2><span class="eyebrow">${a.length}</span></div>`+filters()+
+   `<div class="btnrow"><button class="btn" data-act="new">Assign a task</button></div>`+
+   (a.length?a.map(card).join(""):`<div class="center">No tasks match these filters.</div>`);
+}
+
+/* -------- attendance -------- */
+function vAtt(){
+  const day=today(), su=attSummary(ME,day);
+  let h=`<div class="sec-head"><span class="eyebrow">${new Date().toLocaleDateString(undefined,{weekday:"long"})}</span><h2>Attendance</h2></div>
+  <div class="card pad">
+    <div class="eyebrow">${esc(nameOf(ME))} · today</div>
+    <div class="kv" style="margin-top:8px">
+      <div class="k">Entry</div><div>${su.inAt?`<b>${tstr(su.inAt)}</b>${lateBy(ME)?` <span class="tag overdue">${lateBy(ME)} min late</span>`:""}`:"not marked"}</div>
+      <div class="k">Exit</div><div>${su.outAt?`<b>${tstr(su.outAt)}</b>`:su.inside?"still in":"not marked"}</div>
+      <div class="k">Hours</div><div>${su.hours?su.hours+" h"+(su.inside?" and counting":""):"—"}</div>
+    </div>
+    <div class="btnrow">${su.last!=="in"?`<button class="btn" data-act="markin">Mark entry</button>`:`<button class="btn seal" data-act="markout">Mark exit</button>`}</div>
+    <p class="footnote">Both marks need a live photo. Time and GPS come from the moment of capture — they can't be typed.</p>
+  </div>`;
+  if(isOwner()){
+    h+=`<div class="sec-head"><h2 style="font-size:18px">Everyone today</h2></div>
+    <div class="card"><div class="pad" style="overflow-x:auto"><table><tr><th>Person</th><th>In</th><th>Out</th><th>Hours</th><th>Where</th></tr>
+    ${CORE.staff.map(x=>{const q=attSummary(x.id,day),lt=lateBy(x.id);const ev=q.events.find(e=>e.kind==="in"),i=ev;
+      return `<tr><td><a href="#" data-act="staff" data-id="${x.id}"><b>${esc(x.name)}</b></a><br><span class="tiny muted">${esc(x.role)}</span></td>
+      <td>${q.inAt?tstr(q.inAt)+(lt?`<br><span class="tiny" style="color:var(--seal)">${lt}m late</span>`:"")+(i&&i.unverified?`<br><span class="tiny" style="color:var(--crit)">unverified</span>`:""):`<span style="color:var(--seal)">—</span>`}</td>
+      <td>${q.outAt?tstr(q.outAt):q.inside?`<span class="tiny muted">in office</span>`:"—"}</td>
+      <td>${q.hours||"—"}</td>
+      <td class="tiny">${ev&&ev.gps?`<a href="https://maps.google.com/?q=${ev.gps.lat},${ev.gps.lng}" target="_blank" rel="noopener">map</a>`:ev?esc(ev.note||"no gps"):"—"}</td></tr>`}).join("")}
+    </table></div></div>
+    <div class="btnrow"><button class="btn ghost sm" data-act="attcsv">Export attendance CSV</button></div>`;
+  }
+  const days=[...Array(7)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return dstr(d)});
+  const who=isOwner()?CORE.staff.map(x=>x.id):[ME];
+  h+=`<div class="sec-head"><h2 style="font-size:18px">Last 7 days</h2></div><div class="card"><div class="pad" style="overflow-x:auto"><table>
+   <tr><th>Person</th>${days.map(d=>`<th>${d.slice(8)}/${d.slice(5,7)}</th>`).join("")}</tr>
+   ${who.map(u=>`<tr><td>${esc(nameOf(u))}</td>${days.map(d=>{const q=attSummary(u,d);
+     return `<td class="tiny mono">${q.inAt?`${tstr(q.inAt)}<br>${q.outAt?tstr(q.outAt):"—"}`:`<span class="muted">—</span>`}</td>`}).join("")}</tr>`).join("")}
+  </table></div></div>
+  <div class="sec-head"><h2 style="font-size:18px">Today's marks</h2></div>`;
+  const marks=(CORE.att||[]).filter(a=>dstr(a.at)===day&&(isOwner()||a.by===ME)).sort((x,y)=>new Date(y.at)-new Date(x.at));
+  h+=marks.length?marks.map(a=>`<div class="card pad">
+     <div class="no mono tiny">${esc(nameOf(a.by))} · ${a.kind==="in"?"ENTRY":"EXIT"} · ${fmt(a.at)}</div>
+     ${a.unverified?`<span class="tag overdue">no photo — unverified</span>`:a.upload?`<span class="tag">photo added from phone</span>`:""}
+     ${a.photo?`<img class="thumb" data-photo="${a.photo}" alt="Attendance photo">`:""}
+     <div class="tiny muted" style="margin-top:6px">${a.gps?`GPS ${a.gps.lat.toFixed(6)}, ${a.gps.lng.toFixed(6)} (±${Math.round(a.gps.acc)}m) · <a href="https://maps.google.com/?q=${a.gps.lat},${a.gps.lng}" target="_blank" rel="noopener">Open map</a>`:"GPS unavailable · "+esc(a.note||"no location note")}</div>
+   </div>`).join(""):`<div class="center">No marks yet today.</div>`;
+  return h;
+}
+function attSheet(kind){
+  sheet(`<div class="bar"><h2 style="font-size:18px">${kind==="in"?"Mark entry":"Mark exit"}</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card pad">
+    <div class="kv"><div class="k">Person</div><div>${esc(nameOf(ME))}</div>
+    <div class="k">Live time</div><div class="mono" id="attClock">${fmt(now())}</div></div>
+    ${cameraHTML("Face the camera. The photo is stamped with this exact time, your name and the GPS reading — that stamp is the record.")}
+    <div class="btnrow"><button class="btn seal" data-act="saveatt" data-kind="${kind}">Save ${kind==="in"?"entry":"exit"}</button><button class="btn ghost" data-act="close">Cancel</button></div>
+    <p class="footnote">Camera won't work at all on this phone? <a href="#" data-act="saveattnp" data-kind="${kind}">Save without a photo</a> — the mark goes in flagged as unverified and Sushil can see it.</p>
+  </div>`);
+  FACING="user"; grabGPS(); startCam();
+}
+async function saveAtt(kind,noPhoto){
+  const shot=currentShot();
+  if(!shot&&!noPhoto)return toast("No photo yet. Tap “Open camera”, or “Use phone camera” if the camera won't open.");
+  const su=attSummary(ME,today());
+  if(kind==="in"&&su.last==="in")return toast("You're already marked in. Mark exit first.");
+  if(kind==="out"&&su.last!=="in")return toast("Mark your entry before marking exit.");
+  let pid="a"+Date.now().toString(36);
+  if(shot){
+    try{const up=await api("savePhoto",{dataUrl:shot,kind:"attendance"}); pid=up.id; MEDIA[pid]=shot}
+    catch(e){return toast("The photo wouldn't file: "+e.message)}}
+  const saved=await mutate(c=>{c.att=c.att||[];c.att.push({id:pid,by:ME,kind,at:iso(now()),gps:GPS||null,
+    note:val("gpsManual")||"",photo:shot?pid:"",upload:!!SHOTUP,unverified:!shot})});
+  if(!saved)return;
+  FACING="environment"; closeSheet();
+  toast((kind==="in"?"Entry marked at ":"Exit marked at ")+tstr(now())+(shot?"":" — no photo, flagged"),"ok");
+}
+
+/* -------- voice notes -------- */
+function mins(sec){const m=Math.floor(sec/60),r=Math.round(sec%60);return sec?(m?m+"m ":"")+r+"s":"—"}
+function vVoice(){
+  let list=isOwner()?(CORE.notes||[]).slice().sort((a,b)=>new Date(b.at)-new Date(a.at)):notesFor(ME);
+  if(isOwner()&&VFILTER)list=list.filter(n=>n.by===VFILTER);
+  let h=`<div class="sec-head"><h2>Voice notes</h2><span class="eyebrow">spoken + written</span></div>
+  <p class="small muted">Record a note and it's written out as you speak. Each one is filed under the speaker's name with the office time.</p>
+  <div class="btnrow"><button class="btn" data-act="newnote">Record a note</button>${list.length?`<button class="btn ghost" data-act="notescsv">Copy all as text</button>`:""}</div>`;
+  if(isOwner()){
+    const rows=CORE.staff.map(x=>({x,v:voiceStats(x.id)})).filter(r=>r.v.count).sort((a,b)=>b.v.sec-a.v.sec);
+    const tot=rows.reduce((a,b)=>a+b.v.sec,0);
+    h+=`<div class="sec-head"><h2 style="font-size:18px">By person</h2><span class="eyebrow">${mins(tot)} in total</span></div>`;
+    h+=rows.length?`<div class="card"><div class="pad" style="overflow-x:auto"><table><tr><th>Person</th><th>Notes</th><th>Minutes</th><th>Last note</th></tr>
+     ${rows.map(r=>`<tr><td><a href="#" data-act="vfilter" data-id="${r.x.id}"><b>${esc(r.x.name)}</b></a><br><span class="tiny muted">${esc(r.x.role)}</span></td>
+       <td>${r.v.count}</td><td class="mono">${mins(r.v.sec)}</td><td class="tiny">${fmt(r.v.last)}</td></tr>`).join("")}
+     </table></div></div>`:`<div class="card pad small muted">Nobody has recorded a note yet.</div>`;
+    if(VFILTER)h+=`<div class="btnrow"><button class="btn ghost sm" data-act="vfilter" data-id="">Showing ${esc(nameOf(VFILTER))} only — show everyone</button></div>`;
+  }
+  if(!list.length)return h+`<div class="center">No voice notes yet.</div>`;
+  return h+list.map(n=>{const t=n.task?CORE.tasks.find(x=>x.id===n.task):null;
+   return `<div class="card pad">
+    <div class="no mono tiny">${esc(nameOf(n.by))} · ${fmt(n.at)}${n.dur?" · "+n.dur+"s":""}</div>
+    <h3 style="font-size:15px;margin:3px 0 6px">${esc(n.title||"Voice note")}</h3>
+    ${n.audio?`<audio data-audio="${n.audio}" controls style="width:100%"></audio>`:`<div class="tiny muted">Typed note — no audio</div>`}
+    ${n.text?`<div class="small" style="background:#f7f8fb;border:1px solid var(--line);border-radius:7px;padding:9px;margin-top:8px">${nl(n.text)}</div>`:`<div class="tiny muted" style="margin-top:6px">No transcript saved.</div>`}
+    ${t?`<div class="tiny muted" style="margin-top:6px">Attached to <a href="#" data-act="open" data-id="${t.id}">${esc(t.no)} ${esc(t.title)}</a></div>`:""}
+    <div class="btnrow"><button class="btn ghost sm" data-act="notefiles" data-id="${n.id}">Download</button><button class="btn ghost sm" data-act="notecopy" data-id="${n.id}">Copy text</button></div>
+   </div>`}).join("");
+}
+function noteSheet(){
+  sheet(`<div class="bar"><h2 style="font-size:18px">Record a note</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card pad">
+    <label>What is this about</label><input id="v_title" placeholder="e.g. Site visit — Padappai land">
+    <label>Attach to a task <span class="muted" style="font-weight:400">optional</span></label>
+    <select id="v_task"><option value="">Not linked</option>${CORE.tasks.filter(t=>visible(t)&&open_(t)).map(t=>`<option value="${t.id}">${esc(t.no)} — ${esc(t.title)}</option>`).join("")}</select>
+    ${recorderHTML()}
+    <div class="btnrow"><button class="btn seal" data-act="savenote">Save note</button><button class="btn ghost" data-act="close">Cancel</button></div>
+    <p class="footnote">Filed as ${esc(nameOf(ME))} · ${fmt(now())}.</p>
+  </div>`);
+}
+async function saveNote(){
+  const text=val("v_text"), title=val("v_title")||("Voice note "+fmt(now()));
+  if(!RAUDIO&&!text)return toast("Record something or type the note first.");
+  let v; try{v=await api("saveVoice",{dataUrl:RAUDIO||"",text,title})}
+  catch(e){return toast("The voice note wouldn't file: "+e.message)}
+  const id=v.id||("n"+Date.now().toString(36));
+  if(v.id)MEDIA[v.id]=RAUDIO;
+  const task=val("v_task");
+  await mutate(c=>{c.notes=c.notes||[];c.notes.push({id,by:ME,at:iso(now()),title,text,audio:v.id||"",doc:v.doc||"",dur:RDUR,task})});
+  RAUDIO=null; RDUR=0; closeSheet(); toast("Voice note saved","ok");
+}
+
+/* -------- one employee, in detail -------- */
+function staffSheet(uid){
+  const s=byId(uid), a=tasksFor(uid).sort((x,y)=>(open_(y)-open_(x))||(new Date(y.createdAt)-new Date(x.createdAt)));
+  const su=attSummary(uid,today());
+  let h=`<div class="bar"><h2 style="font-size:19px">${esc(s.name)}</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card"><div class="stat">
+    <div><b>${a.filter(open_).length}</b><span>Open</span></div>
+    <div><b style="color:${a.filter(needsEOD).length?"var(--seal)":"var(--ok)"}">${a.filter(needsEOD).length}</b><span>Update due</span></div>
+    <div><b style="color:${a.filter(overdue).length?"var(--crit)":"inherit"}">${a.filter(overdue).length}</b><span>Overdue</span></div>
+    <div><b>${a.filter(t=>!open_(t)).length}</b><span>Closed</span></div>
+  </div></div>
+  <div class="card pad"><div class="eyebrow">Today</div>
+   <div class="small">Attendance: ${su.inAt?`in ${tstr(su.inAt)}${su.outAt?`, out ${tstr(su.outAt)}`:", still in"}${su.hours?` · ${su.hours} h`:""}`:"<span style='color:var(--seal)'>not marked</span>"}</div>
+   <div class="small">Voice notes: ${voiceStats(uid).count} · ${mins(voiceStats(uid).sec)} recorded</div></div>`;
+  const vn=notesFor(uid).slice(0,6);
+  if(vn.length){
+    h+=`<div class="sec-head"><h2 style="font-size:18px">Latest voice notes</h2><span class="eyebrow">${voiceStats(uid).count}</span></div>`;
+    h+=vn.map(n=>`<div class="card pad">
+      <div class="no mono tiny">${fmt(n.at)}${n.dur?" · "+mins(Number(n.dur)):""}</div>
+      <div class="small" style="margin:2px 0 6px"><b>${esc(n.title||"Voice note")}</b></div>
+      ${n.audio?`<audio data-audio="${n.audio}" controls style="width:100%"></audio>`:""}
+      ${n.text?`<div class="small" style="background:#f7f8fb;border:1px solid var(--line);border-radius:7px;padding:8px;margin-top:6px">${nl(n.text)}</div>`:""}
+    </div>`).join("");
+    if(voiceStats(uid).count>vn.length)h+=`<div class="btnrow"><button class="btn ghost sm" data-act="vfilter" data-id="${uid}">See all ${voiceStats(uid).count}</button></div>`;
+  }
+  if(!a.length)return sheet(h+`<div class="center">No tasks assigned yet.</div>`);
+  h+=`<div class="sec-head"><h2 style="font-size:18px">Every task, with updates</h2><span class="eyebrow">${a.length}</span></div>`;
+  h+=a.map(t=>`<div class="card"><div class="pad">
+    <div class="no mono tiny">${esc(t.no)} · assigned ${fmt(t.createdAt)} by ${esc(nameOf(t.assigner))}</div>
+    <h3 style="font-size:16px;margin:3px 0 5px">${esc(t.title)}</h3>
+    <div class="row"><span class="tag st-${esc(t.status.replace(/\s/g,""))}">${esc(t.status)}</span><span class="tag">${esc(t.priority)}</span>
+      ${t.deadline?`<span class="tag ${overdue(t)?"overdue":""}">due ${fmtd(t.deadline)}</span>`:""}
+      ${needsEOD(t)?`<span class="tag due">update due</span>`:""}
+      ${t.followUp?`<span class="tag">f/u ${fmtd(t.followUp)}</span>`:""}
+      ${nextStage(t)?`<span class="tag ${stageOverdue(t)?"overdue":""}">${esc(stageLabel(t))}</span>`:""}
+      ${t.case&&t.case.nextHearing?`<span class="tag hear">hearing ${fmtd(t.case.nextHearing)}</span>`:""}</div>
+    ${t.desc?`<div class="small muted" style="margin-top:6px">${nl(t.desc)}</div>`:""}
+    ${t.case?`<div class="kv" style="margin-top:8px">
+      <div class="k">Court / judge</div><div>${esc(t.case.court||"—")} · ${esc(t.case.judge||"—")}</div>
+      <div class="k">Counsel</div><div>${esc(t.case.counsel||"—")}</div>
+      <div class="k">Sections</div><div>${esc(t.case.section||"—")}</div>
+      <div class="k">Current status</div><div>${nl(t.case.current||"—")}</div>
+      <div class="k">Next step</div><div>${nl(t.case.nextAction||"—")}</div>
+      <div class="k">Personal hearing</div><div>${esc(t.case.phRequired||"—")}${t.case.phRequired==="Yes"?" · "+esc(t.case.phWho||"unassigned"):""} · calendar ${t.case.calendared==="Yes"?"done":"not done"}</div></div>`:""}
+    <details style="margin-top:8px"><summary class="small" style="cursor:pointer;color:var(--steel)">${t.log.length} update${t.log.length===1?"":"s"}</summary>${logHtml(t)}</details>
+    <div class="btnrow"><button class="btn ghost sm" data-act="open" data-id="${t.id}">Open docket</button></div>
+  </div></div>`).join("");
+  sheet(h); loadPhotos(); loadAudio();
+}
+
+/* -------- hearings -------- */
+function vHear(){
+  const c=CORE.tasks.filter(t=>visible(t)&&t.case&&t.case.nextHearing).sort((a,b)=>a.case.nextHearing.localeCompare(b.case.nextHearing));
+  let h=`<div class="sec-head"><h2>Cause list</h2><span class="eyebrow">next hearings</span></div>
+   <div class="btnrow"><button class="btn ghost sm" data-act="ics">Download calendar file (.ics)</button></div>`;
+  if(!c.length)return h+`<div class="center">No hearing dates recorded yet. Add them inside a Legal case task.</div>`;
+  h+=`<div class="card"><div class="pad" style="overflow-x:auto"><table><tr><th>Date</th><th>Matter</th><th>Court / Judge</th><th>In office</th><th>Cal.</th></tr>
+  ${c.map(t=>{const k=t.case,n=daysTo(k.nextHearing);
+    return `<tr><td class="mono">${fmtd(k.nextHearing)}<br><span class="tiny muted">${n<0?"past":n===0?"today":"in "+n+"d"}</span></td>
+    <td><a href="#" data-act="open" data-id="${t.id}">${esc(t.title)}</a><br><span class="tiny muted">${esc(t.no)} · ${esc(nameOf(t.assignee))}</span></td>
+    <td>${esc(k.court||"—")}<br><span class="tiny muted">${esc(k.judge||"")}</span></td>
+    <td>${k.phRequired==="Yes"?esc(k.phWho||"unassigned"):"<span class='tiny muted'>not required</span>"}</td>
+    <td>${k.calendared==="Yes"?"✓":"<span style='color:var(--seal)'>no</span>"}</td></tr>`}).join("")}
+  </table></div></div>`;
+  return h;
+}
+
+/* -------- photos -------- */
+function vPhotos(){
+  const rows=[];
+  CORE.tasks.filter(visible).forEach(t=>t.log.forEach((l,i)=>{if(l.photo)rows.push({t,l})}));
+  rows.sort((a,b)=>new Date(b.l.at)-new Date(a.l.at));
+  let h=`<div class="sec-head"><h2>Photo log</h2><span class="eyebrow">geo-stamped</span></div>
+  <p class="small muted">Every photo is captured inside the app and stamped at capture time with the date, time, person, docket number and GPS reading. Stamps are burned into the image and cannot be edited afterwards.</p>`;
+  if(!rows.length)return h+`<div class="center">No site photos yet. Executives can attach one while posting an update.</div>`;
+  return h+rows.map(({t,l})=>`<div class="card pad">
+    <div class="no mono tiny">${esc(t.no)} · ${esc(nameOf(l.by))} · ${fmt(l.at)}</div>
+    <h3 style="font-size:16px;margin:3px 0 6px"><a href="#" data-act="open" data-id="${t.id}">${esc(t.title)}</a></h3>
+    <img class="thumb" data-photo="${l.photo}" alt="Site photo">
+    <div class="tiny muted" style="margin-top:6px">${l.gps?`GPS ${l.gps.lat.toFixed(6)}, ${l.gps.lng.toFixed(6)} (±${Math.round(l.gps.acc)}m) · <a href="https://maps.google.com/?q=${l.gps.lat},${l.gps.lng}" target="_blank" rel="noopener">Open map</a>`:"GPS not available at capture · "+esc(l.gpsNote||"no manual location given")}</div>
+  </div>`).join("");
+}
+
+/* -------- team -------- */
+function vTeam(){
+  let h=`<div class="sec-head"><h2>Team</h2><span class="eyebrow">load &amp; compliance</span></div>
+  <p class="small muted" style="margin:0 0 6px">Tap a name to see every task, every update and their attendance.</p>
+  <div class="card"><div class="pad" style="overflow-x:auto"><table><tr><th>Person</th><th>Open</th><th>Update due</th><th>Overdue</th><th>Last post</th><th>Mobile</th></tr>`;
+  CORE.staff.forEach(s=>{const a=tasksFor(s.id);const l=a.map(lastUpdate).filter(Boolean).sort((x,y)=>new Date(y.at)-new Date(x.at))[0];
+    const p=a.filter(needsEOD).length;
+    h+=`<tr><td><a href="#" data-act="staff" data-id="${s.id}"><b>${esc(s.name)}</b></a><br><span class="tiny muted">${esc(s.role)}${s.note?" · "+esc(s.note):""}</span></td><td>${a.filter(open_).length}</td>
+    <td style="color:${p?"var(--seal)":"var(--ok)"};font-weight:600">${p}</td><td>${a.filter(overdue).length}</td>
+    <td class="tiny">${l?fmt(l.at):"—"}</td>
+    <td class="tiny">${s.phone?`<a href="tel:+${dial(s.phone)}">${esc(s.phone)}</a>`:"—"}</td></tr>`});
+  return h+`</table></div></div>
+  <div class="btnrow"><button class="btn ghost" data-act="tab" data-tab="setup">Edit names &amp; emails</button></div>`;
+}
+
+/* -------- reminders -------- */
+function digestFor(uid){
+  const a=tasksFor(uid), p=a.filter(needsEOD), f=a.filter(followDue), o=a.filter(overdue), hh=a.filter(t=>hearingSoon(t));
+  const noAtt=!attSummary(uid,today()).inAt;
+  if(!p.length&&!f.length&&!o.length&&!hh.length&&!noAtt)return null;
+  const L=t=>`• ${t.no} — ${t.title} [${t.status}]${t.deadline?" · due "+fmtd(t.deadline):""}`;
+  let b=`Good morning ${nameOf(uid)},\n\nStatus pending on your docket as of ${fmtd(today())}.\n`;
+  if(p.length)b+=`\nNo update posted today (${p.length}):\n`+p.map(L).join("\n")+"\n";
+  if(o.length)b+=`\nPast deadline (${o.length}):\n`+o.map(L).join("\n")+"\n";
+  if(f.length)b+=`\nFollow-up falls today or earlier (${f.length}):\n`+f.map(L).join("\n")+"\n";
+  const sg=a.filter(t=>stageOverdue(t)||stageDueToday(t));
+  if(sg.length)b+=`\nStage due (${sg.length}):\n`+sg.map(t=>`• ${t.no} — ${stageLabel(t)}`).join("\n")+"\n";
+  if(hh.length)b+=`\nHearing within 7 days (${hh.length}):\n`+hh.map(t=>`• ${t.no} — ${t.title} · ${fmtd(t.case.nextHearing)} · ${t.case.court||"court n/a"}`).join("\n")+"\n";
+  const su=attSummary(uid,today());
+  if(!su.inAt)b+=`\nAttendance: entry not marked today.\n`;
+  b+=`\nPlease open the console and post your update before ${CORE.settings.eod} today.\n\n— ${CORE.settings.officeName} task console`;
+  if(!p.length&&!o.length&&!f.length)return {subject:`[Docket] Attendance not marked — ${fmtd(today())}`,body:b};
+  return {subject:`[Docket] ${p.length+o.length+f.length} pending update${p.length+o.length+f.length===1?"":"s"} — ${fmtd(today())}`,body:b};
+}
+function vMail(){
+  const list=(isOwner()?CORE.staff:[byId(ME)]).map(s=>({s,d:digestFor(s.id)})).filter(x=>x.d);
+  let h=`<div class="sec-head"><h2>Daily reminders</h2><span class="eyebrow">${CORE.settings.reminderHour} + ${CORE.settings.eod}</span></div>
+  <p class="small muted">These go out on their own at 9 a.m. and 5 p.m. every day. Below is the same thing if you want it sent now, or to reach someone on WhatsApp instead. Tap Send to open your mail app with the message filled in, or copy it into your mailer. To send these automatically every morning without opening the app, follow the setup note that came with this file.</p>`;
+  if(!list.length)return h+`<div class="banner ok">Nobody has a pending update. No reminders to send.</div>`;
+  h+=`<div class="btnrow">${isOwner()?`<button class="btn seal" data-act="sendnow">Email everyone pending now</button>`:""}<button class="btn ghost" data-act="waall">WhatsApp the next one pending</button><button class="btn ghost" data-act="mailall">Open all in mail app</button><button class="btn ghost" data-act="copyall">Copy all as text</button></div>`;
+  h+=list.map(({s,d})=>`<div class="card pad">
+    <div class="row"><b>${esc(s.name)}</b>${s.note?`<span class="tag">${esc(s.note)}</span>`:""}<span class="tag">${esc(s.phone||"no mobile")}</span><span class="tag">${esc(s.email||"no email")}</span></div>
+    <div class="tiny mono muted" style="margin:6px 0 2px">${esc(d.subject)}</div>
+    <pre style="white-space:pre-wrap;font-family:var(--mono);font-size:12px;background:#f7f8fb;border:1px solid var(--line);border-radius:7px;padding:9px;margin:4px 0 0">${esc(d.body)}</pre>
+    <div class="btnrow">${s.phone?`<button class="btn sm" data-act="wa1" data-id="${s.id}">WhatsApp</button><button class="btn ghost sm" data-act="sms1" data-id="${s.id}">SMS</button>`:""}
+    <button class="btn ghost sm" data-act="mail1" data-id="${s.id}">Email</button><button class="btn ghost sm" data-act="copy1" data-id="${s.id}">Copy</button></div></div>`).join("");
+  return h;
+}
+
+/* -------- audit -------- */
+function vAudit(){
+  const ev=[];
+  CORE.tasks.forEach(t=>{ev.push({at:t.createdAt,by:t.assigner,t,txt:`Assigned to ${nameOf(t.assignee)} — ${t.title}`});
+    t.log.forEach(l=>ev.push({at:l.at,by:l.by,t,txt:(l.reassignTo?`Handed over to ${nameOf(l.reassignTo)}`:`Status → ${l.status}`)+(l.comment?" · "+l.comment:"")}))});
+  ev.sort((a,b)=>new Date(b.at)-new Date(a.at));
+  return `<div class="sec-head"><h2>Audit trail</h2><span class="eyebrow">append-only</span></div>
+  <p class="small muted">Machine-stamped at the moment of posting. Entries can't be edited, deleted or back-dated.</p>
+  <div class="card"><div class="pad" style="overflow-x:auto"><table><tr><th>Stamp</th><th>Who</th><th>Docket</th><th>Event</th></tr>
+  ${ev.slice(0,300).map(e=>`<tr><td class="mono tiny">${fmt(e.at)}</td><td>${esc(nameOf(e.by))}</td><td class="mono tiny">${esc(e.t.no)}</td><td>${esc(e.txt)}</td></tr>`).join("")}
+  </table></div></div>`;
+}
+
+/* -------- setup -------- */
+function vSetup(){
+  return `<div class="sec-head"><h2>Setup</h2></div>
+  <div class="card pad">
+    <label>Office name</label><input id="s_office" value="${esc(CORE.settings.officeName)}">
+    <div class="grid2">
+      <div><label>Morning reminder</label><input id="s_rem" type="time" value="${esc(CORE.settings.reminderHour)}"></div>
+      <div><label>End-of-day cut-off</label><input id="s_eod" type="time" value="${esc(CORE.settings.eod)}"></div>
+      <div><label>Shift starts (for late marks)</label><input id="s_shift" type="time" value="${esc(CORE.settings.shiftStart||"09:30")}"></div>
+      <div><label>Country dialling code</label><input id="s_dial" value="${esc(CORE.settings.dial||"91")}"></div>
+    </div>
+    <div class="btnrow"><button class="btn sm" data-act="savesettings">Save settings</button></div>
+  </div>
+  <div class="sec-head"><h2 style="font-size:18px">Properties &amp; companies</h2></div>
+  <div class="card pad">
+    <label>One per line — this is the list people pick from when assigning</label>
+    <textarea id="s_props" style="min-height:150px;font-family:var(--mono);font-size:13.5px">${esc(props().join("\n"))}</textarea>
+    <div class="btnrow"><button class="btn sm" data-act="saveprops">Save list</button></div>
+    <p class="footnote">Keep “Others” at the end — picking it lets the person type a name that isn't on the list yet. Removing a name here doesn't change tasks already filed under it.</p>
+  </div>
+  <div class="sec-head"><h2>Team list</h2></div>
+  ${CORE.staff.map(s=>`<div class="card pad"><div class="grid2">
+    <div><label>Name</label><input data-st="${s.id}" data-f="name" value="${esc(s.name)}"></div>
+    <div><label>Role</label><select data-st="${s.id}" data-f="role">${ROLES.map(r=>`<option ${s.role===r?"selected":""}>${r}</option>`).join("")}</select></div>
+    <div><label>Mobile</label><input data-st="${s.id}" data-f="phone" type="tel" inputmode="tel" value="${esc(s.phone||"")}" placeholder="10-digit number"></div>
+    <div><label>Also known as</label><input data-st="${s.id}" data-f="note" value="${esc(s.note||"")}" placeholder="e.g. Accounts head"></div>
+    <div><label>Email for reminders</label><input data-st="${s.id}" data-f="email" type="email" value="${esc(s.email)}" placeholder="name@office.com"></div>
+    <div><label>&nbsp;</label><button class="btn ghost sm" data-act="delstaff" data-id="${s.id}">Remove person</button></div>
+  </div></div>`).join("")}
+  <div class="btnrow"><button class="btn sm" data-act="savestaff">Save team</button><button class="btn ghost sm" data-act="addstaff">Add person</button></div>
+  <div class="sec-head"><h2 style="font-size:18px">PINs</h2></div>
+  <div class="card pad">
+    <div class="grid2">
+      <div><label>Whose PIN</label><select id="k_who">${CORE.staff.map(x=>`<option value="${x.id}">${esc(x.name)}${x.email?"":" — no email"}${x.forcePin?" · reset, not yet changed":""}</option>`).join("")}</select></div>
+      <div><label>New four-digit PIN</label><div style="display:flex;gap:6px">
+        <input id="k_pin" type="tel" inputmode="numeric" maxlength="4" placeholder="0000" style="flex:1">
+        <button class="btn ghost sm" type="button" data-act="genpin">Generate</button></div></div>
+    </div>
+    <div class="checks"><label class="chk on"><input type="checkbox" id="k_mail" checked>Email it to them</label></div>
+    <div class="btnrow"><button class="btn sm" data-act="setpin">Set PIN</button><button class="btn ghost sm" data-act="waipin">Send on WhatsApp instead</button></div>
+    <p class="footnote">The person is asked to choose their own PIN the moment they next sign in. PINs are never shown back to you here — only replaced.</p>
+  </div>
+  <div class="sec-head"><h2 style="font-size:18px">Board health</h2></div>
+  <div class="card pad"><div class="kv">
+    <div class="k">Connection</div><div>${LINKERR?`<b style="color:var(--crit)">last call failed</b> — ${esc(LINKERR)}`:`<b style="color:var(--ok)">connected</b> · office clock ${fmt(now())}`}</div>
+    <div class="k">Board revision</div><div class="mono">${CORE.rev||0}</div>
+    <div class="k">Console build</div><div class="mono">1.6.0 · <a href="/api/docket?action=diag" target="_blank" rel="noopener">server check</a></div>
+    <div class="k">On the board</div><div>${CORE.tasks.length} tasks · ${CORE.staff.length} people · ${(CORE.att||[]).length} attendance marks · ${(CORE.notes||[]).length} voice notes</div>
+    <div class="k">Signed in as</div><div>${esc(nameOf(ME))} <span class="mono tiny">${esc(ME)}</span> · ${tasksFor(ME).length} task(s) assigned to this name</div>
+  </div>
+  <div class="btnrow"><button class="btn ghost sm" data-act="reload">Reload board</button>
+    <button class="btn ghost sm" data-act="health">Check the server</button>
+    <button class="btn ghost sm" data-act="backup">Download a backup</button>
+    <label class="btn ghost sm" for="restoreFile" style="cursor:pointer">Restore from backup</label>
+    <input id="restoreFile" type="file" accept="application/json,.json" style="position:absolute;left:-9999px"></div>
+  <p class="footnote">If someone can't see their tasks, check here first: everyone must be on the same board revision, and each person must sign in under their own name.</p></div>
+  <hr><p class="footnote">Data is shared: everyone who opens this file sees the same tasks, updates and photos. Keep the link inside the office.</p>
+  <div class="btnrow"><button class="btn ghost sm" data-act="backup">Download a backup</button></div>`;
+}
+
+/* ============================ sheets ============================ */
+function sheet(html){EDITING=true;document.getElementById("sheet").innerHTML=`<div class="sheet"><div class="inner">${html}</div></div>`;document.querySelector(".sheet .inner").scrollTop=0}
+function closeSheet(){EDITING=false;stopCam();if(REC&&REC.state==="recording")stopRec();stopSR();SHOT=null;GPS=null;RAUDIO=null;RDUR=0;FACING="environment";document.getElementById("sheet").innerHTML=""}
+document.getElementById("sheet").addEventListener("click",e=>{if(e.target.classList.contains("sheet"))closeSheet()});
+
+/* -------- new task -------- */
+function newTaskSheet(){
+  sheet(`<div class="bar"><h2>Assign a task</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card pad">
+    <label>Property / company <span class="req">*</span></label>
+    <select id="n_prop"><option value="">Choose one</option>${propOptions()}<option value="__none">Not tied to any property</option></select>
+    <input id="n_propx" class="hide" placeholder="Which one? Type the name" style="margin-top:6px">
+    <label>Task <span class="req">*</span></label><input id="n_title" placeholder="What must be done">
+    <label>Detail / instruction</label><textarea id="n_desc" placeholder="Context, documents to refer, expected outcome"></textarea>
+    <div class="grid2">
+      <div><label>Assign to <span class="req">*</span></label><select id="n_who">${CORE.staff.filter(s=>s.id!==ME).map(s=>`<option value="${s.id}">${esc(s.name)} — ${esc(s.role)}</option>`).join("")}</select></div>
+      <div><label>Deadline date</label><input id="n_due" type="date" min="${today()}"></div>
+    </div>
+    <label>Stages <span class="muted" style="font-weight:400">optional — for work that runs in steps</span></label>
+    <div id="n_stages"></div>
+    <div class="btnrow"><button class="btn ghost sm" type="button" data-act="addstage">Add a stage</button></div>
+    <p class="footnote">Each stage is due a set number of days after the one before it. The first counts from today, so “2” means T+2. The deadline fills itself from the last stage if you leave it blank.</p>
+    <div class="btnrow"><button class="btn" data-act="savetask">Assign task</button><button class="btn ghost" data-act="close">Cancel</button></div>
+    <p class="footnote">You can't assign a task to yourself.</p>
+    <p class="footnote">That's all you fill. Completion time, delay, issues, follow-up, next process, case record and photo are the employee's columns — they add whichever the task calls for when they post status.</p>
+    <p class="footnote">Assigned at ${fmt(now())} by ${esc(nameOf(ME))} — stamped automatically.</p>
+  </div>`);
+  const sel=document.getElementById("n_prop");
+  sel.addEventListener("change",()=>{
+    const x=document.getElementById("n_propx");
+    x.classList.toggle("hide",sel.value!=="Others");
+    if(sel.value==="Others")x.focus();
+  });
+}
+function stageRow(box,name,days){
+  const i=box.children.length;
+  const d=document.createElement("div");
+  d.className="grid2"; d.style.cssText="align-items:end;border-left:2px solid var(--line);padding-left:8px;margin-top:6px";
+  d.innerHTML=`<div><label>Stage ${i+1}</label><input class="st-n" value="${esc(name||"")}" placeholder="e.g. Draft ready"></div>
+   <div><label>Days after ${i?"stage "+i:"today"}</label><div style="display:flex;gap:6px">
+     <input class="st-d" type="number" min="0" max="365" value="${days===undefined?2:days}" style="flex:1">
+     <button class="btn ghost sm" type="button" data-act="delstage">Remove</button></div></div>`;
+  box.appendChild(d);
+}
+function readStages(box,from){
+  let cum=0; const out=[];
+  [...box.children].forEach(row=>{
+    const n=row.querySelector(".st-n").value.trim();
+    const d=Math.max(0,parseInt(row.querySelector(".st-d").value,10)||0);
+    if(!n)return;
+    cum+=d;
+    const due=new Date(from+"T00:00:00"); due.setDate(due.getDate()+cum);
+    out.push({n,rule:"T+"+cum,due:dstr(due),done:false,at:"",by:""});
+  });
+  return out;
+}
+async function saveTask(){
+  const who=val("n_who");
+  if(!who)return toast("There's nobody else to assign this to.");
+  if(who===ME)return toast("You can't assign a task to yourself.");
+  let due=val("n_due");
+  if(due&&due<today())return toast("Deadline can't be in the past.");
+  let prop=val("n_prop");
+  if(!prop)return toast("Which property or company is this for?");
+  if(prop==="__none")prop="";
+  if(prop==="Others"){const x=val("n_propx"); prop=x?x:"Others"}
+  const title=val("n_title");
+  if(!title)return toast("Give the task a title.");
+  const stg=readStages(document.getElementById("n_stages"),today());
+  if(stg.length&&!due)due=stg[stg.length-1].due;
+  const t={
+    id:"t"+Date.now().toString(36),no:"",title,desc:val("n_desc"),type:"General",
+    assignee:who,assigner:ME,priority:"Medium",deadline:due||"",
+    property:prop,fields:[],links:[],stages:stg,status:"Not started",followUp:"",createdAt:iso(now()),history:[],log:[],case:null
+  };
+  await mutate(c=>{c.seq=(c.seq||0)+1;t.no="DK-"+String(c.seq).padStart(4,"0");c.tasks.push(t)});
+  closeSheet();toast("Task assigned to "+nameOf(t.assignee),"ok");
+}
+
+/* -------- task detail -------- */
+function taskSheet(id){
+  const t=CORE.tasks.find(x=>x.id===id); if(!t)return;
+  const k=t.case||{};
+  const canAct=isOwner()||t.assignee===ME||t.assigner===ME;
+  let h=`<div class="bar"><h2 style="font-size:18px">${esc(t.no)}</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card"><div class="pad">
+    <div class="row"><span class="tag st-${esc(t.status.replace(/\s/g,""))}">${esc(t.status)}</span><span class="tag">${esc(t.priority)}</span><span class="tag">${esc(t.type)}</span>${needsEOD(t)?`<span class="tag due">update due</span>`:""}</div>
+    <h2 style="font-size:19px;margin:8px 0 2px">${esc(t.title)}</h2>
+    ${t.desc?`<p class="small" style="margin:4px 0">${nl(t.desc)}</p>`:""}
+    <div class="kv">
+      ${t.property?`<div class="k">Property / company</div><div><b>${esc(t.property)}</b></div>`:""}
+      <div class="k">With</div><div>${esc(nameOf(t.assignee))}</div>
+      <div class="k">Assigned by</div><div>${esc(nameOf(t.assigner))} · <span class="mono tiny">${fmt(t.createdAt)}</span></div>
+      <div class="k">Deadline</div><div>${t.deadline?fmtd(t.deadline)+(overdue(t)?` <span class="tag overdue">${-daysTo(t.deadline)}d over</span>`:""):"—"}</div>
+      <div class="k">Next follow-up</div><div>${t.followUp?fmtd(t.followUp):"—"}</div>
+      ${t.links.length?`<div class="k">Linked</div><div class="tiny">${t.links.map(id2=>{const y=CORE.tasks.find(z=>z.id===id2);return y?`<a href="#" data-act="open" data-id="${y.id}">${esc(y.no)}</a> ${esc(y.title)}${open_(y)?"":" (done)"}`:""}).join("<br>")}</div>`:""}
+    </div>`;
+  if(t.case)h+=`<hr><div class="eyebrow">Case record</div><div class="kv">
+      <div class="k">Court</div><div>${esc(k.court||"—")}</div>
+      <div class="k">Judge</div><div>${esc(k.judge||"—")}</div>
+      <div class="k">Counsel</div><div>${esc(k.counsel||"—")}</div>
+      <div class="k">Sections</div><div>${esc(k.section||"—")}</div>
+      <div class="k">Last order</div><div>${nl(k.lastOrder||"—")}</div>
+      <div class="k">Current status</div><div>${nl(k.current||"—")}</div>
+      <div class="k">Next step</div><div>${nl(k.nextAction||"—")}</div>
+      <div class="k">Next hearing</div><div>${k.nextHearing?fmtd(k.nextHearing):"—"}</div>
+      <div class="k">Personal hearing</div><div>${esc(k.phRequired||"—")}${k.phRequired==="Yes"?" · handled by "+esc(k.phWho||"unassigned"):""}</div>
+      <div class="k">In calendar</div><div>${k.calendared==="Yes"?"Yes":`<span style="color:var(--seal)">Not yet</span>`}</div>
+      <div class="k">Criticality</div><div>${esc(k.crit||t.priority)}</div>
+    </div>`;
+  if(stages(t).length){
+    h+=`<hr><div class="eyebrow">Stages</div><div style="margin-top:6px">`;
+    let blocked=false;
+    stages(t).forEach((x,i)=>{
+      const late=!x.done&&x.due&&daysTo(x.due)<0, now_=!x.done&&!blocked;
+      if(!x.done)blocked=true;
+      h+=`<div class="row" style="border-left:3px solid ${x.done?"var(--ok)":late?"var(--crit)":"var(--line)"};padding:6px 0 6px 9px;margin-bottom:5px">
+        <div style="flex:1;min-width:0">
+          <div class="small"><b>${i+1}. ${esc(x.n)}</b>${x.rule?` <span class="tiny muted mono">${esc(x.rule)}</span>`:""}</div>
+          <div class="tiny muted">${x.done?`done ${fmt(x.at)} · ${esc(nameOf(x.by))}`:x.due?`due ${fmtd(x.due)}${late?` · ${-daysTo(x.due)}d late`:""}`:"no date"}</div>
+        </div>
+        ${(!x.done&&canAct&&now_)?`<button class="btn sm" data-act="stagedone" data-id="${t.id}" data-i="${i}">Mark done</button>`:""}
+      </div>`;
+    });
+    h+=`</div>`;
+  }
+  h+=`</div></div>`;
+  if(canAct)h+=`<div class="btnrow"><button class="btn seal" data-act="update" data-id="${t.id}">Post update</button>
+    <button class="btn ghost" data-act="handover" data-id="${t.id}">Hand over</button>
+    ${isOwner()||t.assigner===ME?`<button class="btn ghost" data-act="editfields" data-id="${t.id}">Edit task</button>`:""}</div>`;
+  h+=`<div class="sec-head"><h2 style="font-size:17px">Update history</h2><span class="eyebrow">${t.log.length}</span></div><div class="card pad">${logHtml(t)}</div>`;
+  sheet(h);
+  loadPhotos(); loadAudio();
+}
+function logHtml(t){
+  if(!t.log.length)return `<p class="small muted" style="margin:0">No updates posted yet.</p>`;
+  return `<div class="log">`+t.log.slice().reverse().map(l=>{
+    const bit=(lbl,v)=>v?`<div class="kv" style="margin:3px 0"><div class="k">${lbl}</div><div>${nl(v)}</div></div>`:"";
+    return `<div class="e"><div class="st">${fmt(l.at)} · ${esc(nameOf(l.by))}${l.late?` · <span style="color:var(--seal)">posted after cut-off</span>`:""}</div>
+    <div><b>${esc(l.reassignTo?"Handed over to "+nameOf(l.reassignTo):l.status)}</b></div>
+    ${l.comment?`<div class="small">${nl(l.comment)}</div>`:""}
+    ${bit("Completed at",l.endTime?fmt(l.endTime):"")}${bit("Delay",l.delay)}${bit("Issues",l.issues)}${bit("Linked issue",l.linkIssue)}
+    ${bit("Next follow-up",l.followUp?fmtd(l.followUp):"")}${bit("Next process",l.next)}${bit("Criticality set to",l.priority)}
+    ${l.audio?`<audio data-audio="${l.audio}" controls style="width:100%;margin-top:6px"></audio>`:""}
+    ${l.voiceText?`<div class="small" style="background:#f7f8fb;border:1px solid var(--line);border-radius:7px;padding:8px;margin-top:6px"><span class="eyebrow">Voice note, written out</span><br>${nl(l.voiceText)}</div>`:""}
+    ${l.photo?`${l.upload?`<div class="tiny muted" style="margin-top:6px">Picture added from the phone, not captured live.</div>`:""}<img class="thumb" data-photo="${l.photo}" alt="Site photo">${l.gps?`<div class="tiny muted">GPS ${l.gps.lat.toFixed(6)}, ${l.gps.lng.toFixed(6)} · <a href="https://maps.google.com/?q=${l.gps.lat},${l.gps.lng}" target="_blank" rel="noopener">Map</a></div>`:`<div class="tiny muted">GPS unavailable · ${esc(l.gpsNote||"")}</div>`}`:""}
+    </div>`}).join("")+`</div>`;
+}
+
+/* -------- update form -------- */
+function recorderHTML(){return `
+    <div id="recArea"><button class="btn ghost sm" type="button" data-act="rec">Start recording</button> <span class="tiny muted" id="recState">up to 3 minutes</span></div>
+    <audio id="recPlay" class="hide" controls style="width:100%;margin-top:8px"></audio>
+    <div class="grid2"><div><label>Speaking language</label><select id="v_lang">
+      <option value="en-IN">English (India)</option><option value="ta-IN">Tamil</option><option value="hi-IN">Hindi</option>
+      <option value="te-IN">Telugu</option><option value="kn-IN">Kannada</option><option value="ml-IN">Malayalam</option><option value="en-US">English (US)</option>
+    </select></div></div>
+    <label>Written out <span class="muted" style="font-weight:400">typed automatically while you speak — correct it if needed</span></label>
+    <textarea id="v_text" placeholder="Words appear here as you talk. If your browser can't transcribe, type the note."></textarea>`}
+function camButtons(){return `<button class="btn ghost sm" type="button" data-act="cam">Open camera</button>
+      <label class="btn ghost sm" for="fileCam" style="cursor:pointer">Use phone camera</label>
+      <span class="tiny muted" id="gpsState">reading GPS…</span>`}
+function cameraHTML(what){return `
+    <p class="small muted" style="margin:6px 0">${what}</p>
+    <div id="camArea" class="btnrow" style="margin-top:6px">${camButtons()}</div>
+    <input id="fileCam" type="file" accept="image/*" capture="environment" style="position:absolute;left:-9999px">
+    <video id="vid" class="hide" playsinline muted></video>
+    <canvas id="cnv" class="cap hide"></canvas>
+    <div class="btnrow hide" id="camBtns"><button class="btn sm" type="button" data-act="shoot">Capture</button><button class="btn ghost sm" type="button" data-act="camoff">Cancel</button></div>
+    <label class="hide" id="gpsManualWrap">Location note (GPS blocked)</label><input id="gpsManual" class="hide" placeholder="Site name / landmark">`}
+
+function updateSheet(id){
+  const t=CORE.tasks.find(x=>x.id===id); if(!t)return;
+  const light=lightMode(t), k=t.case||{}, hasCase=!!t.case;
+  let h=`<div class="bar"><h2 style="font-size:18px">Post update</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card pad">
+    <div class="no mono tiny">${esc(t.no)} · ${esc(t.title)}</div>
+    ${light?`<div class="banner ok" style="margin:10px 0">Deadline ${fmtd(t.deadline)} is ${daysTo(t.deadline)} day(s) away. “In progress” with a comment is enough for now.</div>`:""}
+    <label>Status <span class="req">*</span></label>
+    <select id="u_status">${STATUSES.filter(x=>x!=="Not started").map(x=>`<option ${t.status===x?"selected":""}>${x}</option>`).join("")}</select>
+    <label>Comment <span class="req">*</span></label><textarea id="u_comment" placeholder="What moved today"></textarea>
+    <label>Posted at</label><input readonly value="${fmt(now())} — live stamp, not editable">
+    <hr><div class="eyebrow">Fill only what this task needs</div>
+    <div class="grid2">
+      <div><label>Completion time</label><input id="u_end" type="time"><div class="footnote">Today only. Future times are refused.</div></div>
+      <div><label>Next follow-up date</label><input id="u_fu" type="date" min="${today()}" value="${esc(t.followUp||"")}"></div>
+    </div>
+    <label>Delay &amp; reason</label><textarea id="u_delay" placeholder="e.g. 2 days — clerk did not release certified copy"></textarea>
+    <label>Issues faced</label><textarea id="u_issues"></textarea>
+    <label>Interconnected task issues</label><textarea id="u_link" placeholder="Which other task or person is holding this up, and how"></textarea>
+    <label>Next process</label><textarea id="u_next" placeholder="What happens after this"></textarea>
+    <label>Level of criticality</label><select id="u_pri">${CRIT.map(x=>`<option ${t.priority===x?"selected":""}>${x}</option>`).join("")}</select>
+    <label>Add to this update</label>
+    <div class="checks" id="u_toggles">
+      <label class="chk ${hasCase?"on":""}"><input type="checkbox" data-blk="blk_case" ${hasCase?"checked":""}>Court case record</label>
+      <label class="chk"><input type="checkbox" data-blk="blk_photo">Geo-tagged photo</label>
+      <label class="chk"><input type="checkbox" data-blk="blk_voice">Voice note</label>
+    </div>
+    <div id="blk_case" class="${hasCase?"":"hide"}"><hr><div class="eyebrow">Case record</div>
+      <div class="grid2">
+        <div><label>Court</label><input id="c_court" value="${esc(k.court||"")}"></div>
+        <div><label>Judge</label><input id="c_judge" value="${esc(k.judge||"")}"></div>
+        <div><label>Counsel</label><input id="c_counsel" value="${esc(k.counsel||"")}"></div>
+        <div><label>Applicable sections</label><input id="c_section" value="${esc(k.section||"")}"></div>
+      </div>
+      <label>Last / current order passed</label><textarea id="c_order">${esc(k.lastOrder||"")}</textarea>
+      <label>Current status of matter</label><textarea id="c_current">${esc(k.current||"")}</textarea>
+      <label>Next course of action</label><textarea id="c_next">${esc(k.nextAction||"")}</textarea>
+      <div class="grid2">
+        <div><label>Next hearing date</label><input id="c_hear" type="date" min="${today()}" value="${esc(k.nextHearing||"")}"></div>
+        <div><label>Level of criticality</label><select id="c_crit">${CRIT.map(x=>`<option ${(k.crit||t.priority)===x?"selected":""}>${x}</option>`).join("")}</select></div>
+        <div><label>Personal hearing required</label><select id="c_ph"><option ${k.phRequired==="No"?"selected":""}>No</option><option ${k.phRequired==="Yes"?"selected":""}>Yes</option></select></div>
+        <div><label>Who from office attends</label><select id="c_phwho"><option value="">—</option>${CORE.staff.map(x=>`<option ${k.phWho===x.name?"selected":""}>${esc(x.name)}</option>`).join("")}</select></div>
+        <div><label>Updated in calendar</label><select id="c_cal"><option ${k.calendared==="No"?"selected":""}>No</option><option ${k.calendared==="Yes"?"selected":""}>Yes</option></select></div>
+        <div><label>Case / CNR number</label><input id="c_cnr" value="${esc(k.cnr||"")}"></div>
+      </div>
+    </div>
+    <div id="blk_photo" class="hide"><hr><div class="eyebrow">Site photo</div>${cameraHTML("Capture happens here so the date, time, your name and GPS are burned into the picture. Gallery pictures are not accepted.")}</div>
+    <div id="blk_voice" class="hide"><hr><div class="eyebrow">Voice note</div>${recorderHTML()}</div>
+    <div class="btnrow"><button class="btn seal" data-act="saveupdate" data-id="${t.id}">Post update</button><button class="btn ghost" data-act="close">Cancel</button></div>
+    <p class="footnote">Once posted, an update cannot be edited or removed. Corrections go in as a fresh update.</p>
+  </div>`;
+  sheet(h);
+  document.getElementById("u_toggles").addEventListener("change",e=>{
+    const i=e.target, blk=document.getElementById(i.dataset.blk);
+    i.closest(".chk").classList.toggle("on",i.checked);
+    blk.classList.toggle("hide",!i.checked);
+    if(i.checked&&i.dataset.blk==="blk_photo")grabGPS();
+  });
+}
+
+/* -------- handover -------- */
+function handoverSheet(id){
+  const t=CORE.tasks.find(x=>x.id===id);
+  sheet(`<div class="bar"><h2 style="font-size:18px">Hand over</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card pad"><div class="no mono tiny">${esc(t.no)} · ${esc(t.title)}</div>
+  <label>Hand to <span class="req">*</span></label><select id="h_who">${CORE.staff.filter(s=>s.id!==t.assignee&&s.id!==t.assigner).map(s=>`<option value="${s.id}">${esc(s.name)} — ${esc(s.role)}</option>`).join("")}</select>
+  <label>Handover note <span class="req">*</span></label><textarea id="h_note" placeholder="Where it stands, what the next person must do first"></textarea>
+  <label>New follow-up date</label><input id="h_fu" type="date" min="${today()}" value="${esc(t.followUp||"")}">
+  <div class="btnrow"><button class="btn" data-act="savehandover" data-id="${t.id}">Hand over</button><button class="btn ghost" data-act="close">Cancel</button></div>
+  <p class="footnote">Both names stay on the docket. The trail keeps the full chain.</p></div>`);
+}
+
+/* -------- edit the task (assignor or owner) -------- */
+function fieldsSheet(id){
+  const t=CORE.tasks.find(x=>x.id===id);
+  sheet(`<div class="bar"><h2 style="font-size:18px">Edit task</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card pad"><div class="no mono tiny">${esc(t.no)} · assigned ${fmt(t.createdAt)}</div>
+  <label>Task</label><input id="e_title" value="${esc(t.title)}">
+  <label>Detail / instruction</label><textarea id="e_desc">${esc(t.desc||"")}</textarea>
+  <div class="grid2">
+    <div><label>Assigned to</label><select id="e_who">${CORE.staff.filter(x=>x.id!==t.assigner).map(x=>`<option value="${x.id}" ${t.assignee===x.id?"selected":""}>${esc(x.name)} — ${esc(x.role)}</option>`).join("")}</select></div>
+    <div><label>Criticality</label><select id="e_pri">${CRIT.map(x=>`<option ${t.priority===x?"selected":""}>${x}</option>`).join("")}</select></div>
+    <div><label>Deadline</label><input id="e_due" type="date" min="${today()}" value="${esc(t.deadline||"")}"></div>
+    <div><label>Property / company</label><select id="e_prop"><option value="">Not tied to one</option>${propOptions(t.property)}${t.property&&props().indexOf(t.property)<0?`<option selected>${esc(t.property)}</option>`:""}</select></div>
+  </div>
+  <label>Stages</label>
+  <div id="e_stages">${stages(t).map((x,i)=>`<div class="grid2" style="align-items:end;border-left:2px solid var(--line);padding-left:8px;margin-top:6px" data-i="${i}">
+     <div><label>Stage ${i+1}${x.done?" — done "+fmtd(x.at):""}</label><input class="es-n" value="${esc(x.n)}" ${x.done?"readonly":""}></div>
+     <div><label>Due</label><div style="display:flex;gap:6px"><input class="es-due" type="date" value="${esc(x.due||"")}" ${x.done?"readonly":""} style="flex:1">
+     ${x.done?"":`<button class="btn ghost sm" type="button" data-act="delstage">Remove</button>`}</div></div>
+   </div>`).join("")}</div>
+  <div class="btnrow"><button class="btn ghost sm" type="button" data-act="addstage2">Add a stage</button></div>
+  <div class="btnrow"><button class="btn" data-act="savefields" data-id="${t.id}">Save changes</button><button class="btn ghost" data-act="close">Cancel</button></div>
+  <p class="footnote">Everything the employee has already posted stays untouched, and the change is written into the trail.</p></div>`);
+}
+function editStageRow(box){
+  const i=box.children.length;
+  const d=document.createElement("div");
+  d.className="grid2"; d.style.cssText="align-items:end;border-left:2px solid var(--line);padding-left:8px;margin-top:6px";
+  d.innerHTML=`<div><label>Stage ${i+1}</label><input class="es-n" placeholder="e.g. Filed"></div>
+   <div><label>Due</label><div style="display:flex;gap:6px"><input class="es-due" type="date" min="${today()}" style="flex:1">
+   <button class="btn ghost sm" type="button" data-act="delstage">Remove</button></div></div>`;
+  box.appendChild(d);
+}
+
+/* ============================ camera + gps ============================ */
+let STREAM=null, SHOT=null, SHOTUP=false, GPS=null, FACING="environment";
+async function grabGPS(){
+  const el=document.getElementById("gpsState"); if(!el)return;
+  if(!navigator.geolocation){el.textContent=" · GPS not supported — add a location note";showManual();return}
+  navigator.geolocation.getCurrentPosition(p=>{GPS={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy};
+    const e2=document.getElementById("gpsState");if(e2)e2.innerHTML=` · GPS ${GPS.lat.toFixed(5)}, ${GPS.lng.toFixed(5)} (±${Math.round(GPS.acc)}m)`},
+   ()=>{const e2=document.getElementById("gpsState");if(e2)e2.textContent=" · GPS blocked — add a location note";showManual()},
+   {enableHighAccuracy:true,timeout:10000,maximumAge:0});
+}
+function showManual(){["gpsManualWrap","gpsManual"].forEach(i=>{const e=document.getElementById(i);if(e)e.classList.remove("hide")})}
+async function startCam(){
+  const v=document.getElementById("vid");
+  try{
+    STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:FACING},width:{ideal:1280}},audio:false});
+    v.srcObject=STREAM; await v.play(); v.classList.remove("hide");
+    document.getElementById("camBtns").classList.remove("hide");
+  }catch(e){
+    toast("Live camera is blocked here. Tap “Use phone camera” instead.");
+  }
+}
+/* one delegated listener, so the picture is picked up however it arrives */
+document.addEventListener("change",e=>{
+  if(!e.target||e.target.id!=="fileCam")return;
+  const file=e.target.files&&e.target.files[0]; if(!file)return;
+  const img=new Image();
+  img.onload=()=>{stampAndStore(img,img.naturalWidth||img.width,img.naturalHeight||img.height,true);URL.revokeObjectURL(img.src)};
+  img.onerror=()=>toast("That picture wouldn't open. Try taking it again.");
+  img.src=URL.createObjectURL(file);
+});
+/* the capture survives even if the page state is rebuilt underneath it */
+function currentShot(){
+  if(SHOT)return SHOT;
+  const c=document.getElementById("cnv");
+  if(c&&c.width>10){try{return c.toDataURL("image/jpeg",.62)}catch(err){}}
+  return null;
+}
+function stopCam(){if(STREAM){STREAM.getTracks().forEach(t=>t.stop());STREAM=null}}
+function shoot(){
+  const v=document.getElementById("vid"); if(!v||!v.videoWidth)return toast("Camera still starting.");
+  stampAndStore(v,v.videoWidth,v.videoHeight);
+}
+function stampAndStore(src,w,h,viaUpload){
+  const max=1100, sc=Math.min(1,max/Math.max(w,h)), W=Math.round(w*sc), H=Math.round(h*sc);
+  const c=document.getElementById("cnv"); c.width=W;c.height=H;
+  const x=c.getContext("2d"); x.drawImage(src,0,0,W,H);
+  const lines=[
+    now().toLocaleString(undefined,{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"}),
+    nameOf(ME)+" · "+CORE.settings.officeName,
+    GPS?`GPS ${GPS.lat.toFixed(6)}, ${GPS.lng.toFixed(6)} ±${Math.round(GPS.acc)}m`:"GPS unavailable at capture"
+  ];
+  if(viaUpload)lines.push("PICTURE ADDED FROM PHONE — TIME IS UPLOAD TIME");
+  const fs=Math.max(13,Math.round(W/38)), pad2=Math.round(fs*.5), bh=fs*lines.length+pad2*2.2;
+  x.fillStyle="rgba(10,15,30,.72)"; x.fillRect(0,H-bh,W,bh);
+  x.fillStyle="#fff"; x.font=`600 ${fs}px ui-monospace,Menlo,monospace`; x.textBaseline="top";
+  lines.forEach((l,i)=>x.fillText(l,pad2*1.4,H-bh+pad2+i*fs*1.05));
+  c.classList.remove("hide");
+  const v=document.getElementById("vid"); if(v)v.classList.add("hide");
+  document.getElementById("camBtns").classList.add("hide");
+  stopCam();
+  try{SHOT=c.toDataURL("image/jpeg",.62)}catch(err){SHOT=null;toast("The picture couldn't be stamped. Try again.");return}
+  SHOTUP=!!viaUpload;
+  const a=document.getElementById("camArea");
+  if(a)a.innerHTML=`<span class="tiny" style="color:var(--ok)">✓ Photo ready${viaUpload?" (added from phone)":" and stamped"}.</span> <button class="btn ghost sm" type="button" data-act="retake">Take another</button>`;
+}
+/* ---- voice recorder ---- */
+let REC=null,RCHUNKS=[],RSTREAM=null,RAUDIO=null,RMIME="audio/webm",RSTART=0,RDUR=0,RTIMER=null,SRE=null;
+async function startRec(){
+  try{RSTREAM=await navigator.mediaDevices.getUserMedia({audio:true})}
+  catch(e){toast("Microphone blocked here — type the note instead.");return}
+  RCHUNKS=[];RAUDIO=null;
+  try{REC=new MediaRecorder(RSTREAM)}catch(e){try{REC=new MediaRecorder(RSTREAM,{mimeType:"audio/webm"})}catch(e2){toast("Recording isn't supported in this browser — type the note.");return}}
+  RMIME=REC.mimeType||"audio/webm";
+  REC.ondataavailable=e=>{if(e.data&&e.data.size)RCHUNKS.push(e.data)};
+  REC.onstop=()=>{const b=new Blob(RCHUNKS,{type:RMIME});const fr=new FileReader();
+    fr.onload=()=>{RAUDIO=fr.result;const pl=document.getElementById("recPlay");if(pl){pl.src=RAUDIO;pl.classList.remove("hide")}};
+    fr.readAsDataURL(b)};
+  REC.start(); RSTART=Date.now(); startSR();
+  const a=document.getElementById("recArea");
+  if(a)a.innerHTML=`<button class="btn seal sm" type="button" data-act="recstop">Stop recording</button> <span class="tiny mono" id="recState">● 0:00</span>`;
+  RTIMER=setInterval(()=>{const sec=Math.floor((Date.now()-RSTART)/1000);const e=document.getElementById("recState");
+    if(e)e.textContent="● "+Math.floor(sec/60)+":"+pad(sec%60);
+    if(sec>=180){toast("Three minutes reached — recording stopped.");stopRec()}},250);
+}
+function stopRec(){
+  if(RTIMER){clearInterval(RTIMER);RTIMER=null}
+  RDUR=RSTART?Math.round((Date.now()-RSTART)/1000):0;
+  if(REC&&REC.state!=="inactive"){try{REC.stop()}catch(e){}}
+  if(RSTREAM){RSTREAM.getTracks().forEach(t=>t.stop());RSTREAM=null}
+  stopSR();
+  const a=document.getElementById("recArea");
+  if(a)a.innerHTML=`<span class="tiny" style="color:var(--ok)">Recorded ${RDUR}s.</span> <button class="btn ghost sm" type="button" data-act="rec">Record again</button>`;
+}
+function startSR(){
+  const C=window.SpeechRecognition||window.webkitSpeechRecognition, ta=document.getElementById("v_text");
+  if(!ta)return;
+  if(!C){if(!ta.value)ta.placeholder="This browser can't write speech out automatically — type the note here.";return}
+  try{
+    SRE=new C(); const lg=document.getElementById("v_lang");
+    SRE.lang=lg?lg.value:"en-IN"; SRE.continuous=true; SRE.interimResults=true;
+    let fin=ta.value?ta.value+" ":"";
+    SRE.onresult=e=>{let itr="";for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];
+      if(r.isFinal)fin+=r[0].transcript+" "; else itr+=r[0].transcript}
+      ta.value=(fin+itr).replace(/\s+/g," ").trim()};
+    SRE.onend=()=>{if(SRE&&REC&&REC.state==="recording"){try{SRE.start()}catch(e){}}};
+    SRE.start();
+  }catch(e){}
+}
+function stopSR(){if(SRE){const x=SRE;SRE=null;try{x.onend=null;x.stop()}catch(e){}}}
+async function loadAudio(){
+  const els=document.querySelectorAll("audio[data-audio]");
+  for(const el of els){ if(el.src)continue;
+    const id=el.dataset.audio;
+    if(MEDIA[id]){el.src=MEDIA[id];continue}
+    try{const d=await api("media",{id}); MEDIA[id]=d.dataUrl; el.src=d.dataUrl}
+    catch(e){el.replaceWith(Object.assign(document.createElement("div"),{className:"tiny muted",textContent:"Audio could not be loaded."}))}
+  }
+}
+async function noteFiles(n){
+  if(!n||!n.id)return;
+  const base=nameOf(n.by).replace(/[^A-Za-z0-9]+/g,"_")+"_"+dstr(n.at)+"_"+tstr(n.at).replace(":","");
+  download(base+".txt",`${nameOf(n.by)}\n${fmt(n.at)}\n${n.title||"Voice note"}\n\n${n.text||"(no transcript)"}\n`,"text/plain");
+  if(n.audio){
+    try{
+      const d=MEDIA[n.audio]||(await api("media",{id:n.audio})).dataUrl;
+      MEDIA[n.audio]=d;
+      const a=document.createElement("a");a.href=d;a.download=base+(d.indexOf("audio/mp4")>-1?".m4a":".webm");
+      document.body.appendChild(a);a.click();a.remove();
+    }catch(e){toast("The audio would not download: "+e.message)}
+  }
+}
+async function loadPhotos(){
+  const imgs=document.querySelectorAll("img[data-photo]");
+  for(const im of imgs){ if(im.src)continue;
+    const id=im.dataset.photo;
+    if(MEDIA[id]){im.src=MEDIA[id];continue}
+    try{const d=await api("media",{id}); MEDIA[id]=d.dataUrl; im.src=d.dataUrl}
+    catch(e){im.replaceWith(Object.assign(document.createElement("div"),{className:"tiny muted",textContent:"Photo could not be loaded."}))}
+  }
+}
+
+/* ============================ actions ============================ */
+document.addEventListener("click",async e=>{
+  const el=e.target.closest("[data-act]"); if(!el)return;
+  const a=el.dataset.act, id=el.dataset.id;
+  e.preventDefault();
+  switch(a){
+    case "pick": pinSheet(id); break;
+    case "dosignin": await doSignIn(id); break;
+    case "savemypin": await saveMyPin(); break;
+    case "signout": ME=null;TOKEN="";MEDIA={};clearCreds();VIEW="today";
+      try{const bs=await api("bootstrap");CORE=fresh();CORE.staff=bs.staff}catch(e){}
+      render(); break;
+    case "tab": VIEW=el.dataset.tab; render(); window.scrollTo(0,0); break;
+    case "close": closeSheet(); break;
+    case "new": newTaskSheet(); break;
+    case "savetask": await saveTask(); break;
+    case "open": e.preventDefault(); taskSheet(id); break;
+    case "update": updateSheet(id); break;
+    case "saveupdate": await saveUpdate(id); break;
+    case "handover": handoverSheet(id); break;
+    case "savehandover": await saveHandover(id); break;
+    case "editfields": fieldsSheet(id); break;
+    case "savefields": await saveFields(id); break;
+    case "cam": SHOT=null;SHOTUP=false; startCam(); break;
+    case "shoot": shoot(); break;
+    case "camoff": stopCam(); document.getElementById("vid").classList.add("hide"); document.getElementById("camBtns").classList.add("hide"); break;
+    case "applyfilter": FILTER={q:val("fq"),who:val("fwho"),status:val("fst"),type:val("ftp"),prop:val("fpr")}; render(); break;
+    case "clearfilter": FILTER={q:"",who:"",status:"",type:"",prop:""}; render(); break;
+    case "csv": exportCSV(); break;
+    case "ics": exportICS(); break;
+    case "mail1": mail(byId(id)); break;
+    case "wa1": wa(byId(id)); break;
+    case "sms1": sms(byId(id)); break;
+    case "waall": {const q=(isOwner()?CORE.staff:[byId(ME)]).filter(x=>x.phone&&digestFor(x.id));
+      if(!q.length){toast("Nobody pending has a mobile number saved.");break}
+      wa(q[0]); if(q.length>1)toast(q.length-1+" more pending after "+q[0].name);} break;
+    case "mailall": (isOwner()?CORE.staff:[byId(ME)]).forEach((s,i)=>{ if(digestFor(s.id)) setTimeout(()=>mail(s), i*700) }); break;
+    case "copy1": {const d=digestFor(id); copy(d.subject+"\n\n"+d.body);} break;
+    case "copyall": copy(CORE.staff.map(s=>{const d=digestFor(s.id);return d?`TO: ${s.email||s.name}\nSUBJECT: ${d.subject}\n\n${d.body}\n\n${"-".repeat(40)}\n`:""}).join("")); break;
+    case "saveprops": {const list=(document.getElementById("s_props").value||"").split("\n").map(x=>x.trim()).filter(Boolean);
+      if(!list.length){toast("The list can't be empty.");break}
+      await mutate(c=>{c.settings.properties=list}); toast("List saved","ok")} break;
+    case "savesettings": await mutate(c=>{c.settings.officeName=val("s_office")||"Office";c.settings.eod=val("s_eod")||"18:30";c.settings.reminderHour=val("s_rem")||"09:00";c.settings.shiftStart=val("s_shift")||"09:30";c.settings.dial=(val("s_dial")||"91").replace(/\D/g,"")}); toast("Settings saved","ok"); break;
+    case "savestaff": {
+      const edits={}; document.querySelectorAll("[data-st]").forEach(i=>{edits[i.dataset.st]=edits[i.dataset.st]||{};edits[i.dataset.st][i.dataset.f]=i.value.trim()});
+      await mutate(c=>c.staff.forEach(s=>{if(edits[s.id])Object.assign(s,edits[s.id])})); toast("Team saved","ok"); break; }
+    case "addstaff": await mutate(c=>c.staff.push({id:"u"+Date.now().toString(36),name:"New person",role:"Executive",email:""})); break;
+    case "delstaff": if(CORE.tasks.some(t=>t.assignee===id&&open_(t)))return toast("Reassign their open tasks first.");
+      if(confirm("Remove "+nameOf(id)+" from the team?"))await mutate(c=>c.staff=c.staff.filter(s=>s.id!==id)); break;
+    case "markin": attSheet("in"); break;
+    case "markout": attSheet("out"); break;
+    case "saveatt": await saveAtt(el.dataset.kind); break;
+    case "saveattnp": if(confirm("Save this mark without a photo? It will be flagged as unverified."))await saveAtt(el.dataset.kind,true); break;
+    case "retake": {SHOT=null;SHOTUP=false;const c=document.getElementById("cnv");if(c){c.width=1;c.height=1;c.classList.add("hide")}
+      const a2=document.getElementById("camArea");if(a2){a2.innerHTML=camButtons();grabGPS()}} break;
+    case "reload": location.reload(); break;
+    case "selftest": await selfTest(); break;
+    case "copyreport": copy(REPORT||"No report yet."); break;
+    case "health": try{const r=await fetch("/api/docket?action=diag").then(x=>x.json());
+      toast(r.ok?("Server fine · "+r.database.driver+" · email "+(r.env.RESEND_API_KEY?"yes":"not set up")):("Server not ready: "+(r.nextSteps&&r.nextSteps[0]||"")),r.ok?"ok":"")}
+      catch(e){toast("The server did not answer.")} break;
+    case "addstage": stageRow(document.getElementById("n_stages")); break;
+    case "addstage2": editStageRow(document.getElementById("e_stages")); break;
+    case "delstage": {const row=el.closest(".grid2"); if(row)row.remove()} break;
+    case "stagedone": await stageDone(id,Number(el.dataset.i)); break;
+    case "genpin": {const e2=document.getElementById("k_pin"); if(e2)e2.value=String(Math.floor(1000+Math.random()*9000))} break;
+    case "setpin": {const tgt=val("k_who"),np=val("k_pin");
+      const mail=(document.getElementById("k_mail")||{}).checked;
+      if(!/^[0-9]{4}$/.test(np)){toast("Four digits, please.");break}
+      try{const r=await api("setPin",{target:tgt,newPin:np,notify:mail});CORE=r.data;CORE.rev=r.rev;
+        render();
+        toast(r.emailed?("PIN set and emailed to "+r.to):(r.mailError?("PIN set — "+r.mailError):("PIN set for "+nameOf(tgt))),"ok");
+      }catch(e){toast(e.message)}} break;
+    case "waipin": {const tgt=val("k_who"),np=val("k_pin"),st=byId(tgt);
+      if(!/^[0-9]{4}$/.test(np)){toast("Enter or generate the PIN first.");break}
+      if(!st.phone){toast("No mobile number saved for "+st.name+".");break}
+      try{const r=await api("setPin",{target:tgt,newPin:np,notify:false});CORE=r.data;CORE.rev=r.rev;render()}
+      catch(e){toast(e.message);break}
+      const msg=`${st.name}, your PIN for the ${CORE.settings.officeName||"office"} task console is ${np}. Sign in and set your own PIN straight away.`;
+      window.open(`https://wa.me/${dial(st.phone)}?text=${encodeURIComponent(msg)}`,"_blank","noopener");} break;
+    case "mypin": myPinSheet(); break;
+    case "sendnow": try{const r=await api("sendReminders");toast(r.sent?("Reminder sent to "+r.sent+" people"):"Nobody had anything pending","ok")}catch(e){toast(e.message)} break;
+    case "attcsv": attCSV(); break;
+    case "staff": staffSheet(id); break;
+    case "vfilter": VFILTER=id||""; VIEW="voice"; closeSheet(); render(); break;
+    case "newnote": noteSheet(); break;
+    case "savenote": await saveNote(); break;
+    case "rec": startRec(); break;
+    case "recstop": stopRec(); break;
+    case "notefiles": await noteFiles((CORE.notes||[]).find(x=>x.id===id)); break;
+    case "notecopy": {const n=(CORE.notes||[]).find(x=>x.id===id); copy(`${nameOf(n.by)} · ${fmt(n.at)}\n${n.title||""}\n\n${n.text||"(no transcript)"}`)} break;
+    case "notescsv": copy((isOwner()?CORE.notes:notesFor(ME)).map(n=>`${nameOf(n.by)} · ${fmt(n.at)} · ${n.title||""}\n${n.text||"(no transcript)"}\n${"-".repeat(30)}`).join("\n")); break;
+    case "backup": download("docket-backup-"+today()+".json",JSON.stringify(CORE,null,1),"application/json"); break;
+  }
+});
+const val=id=>{const e=document.getElementById(id);return e?e.value.trim():""};
+
+async function saveUpdate(id){
+  const t=CORE.tasks.find(x=>x.id===id); if(!t)return;
+  const status=val("u_status"), comment=val("u_comment");
+  if(!comment)return toast("Add a comment describing what moved.");
+  const u={at:iso(now()),by:ME,status,comment};
+  const et=val("u_end");
+  if(et){const d=new Date(today()+"T"+et+":00"); if(d>now())return toast("Completion time can't be in the future."); u.endTime=iso(d)}
+  const fu=val("u_fu"); if(fu){if(fu<today())return toast("Follow-up date can't be in the past."); u.followUp=fu}
+  ["delay","issues","next"].forEach(k=>{const v=val("u_"+k); if(v)u[k]=v});
+  const li=val("u_link"); if(li)u.linkIssue=li;
+  const pri=val("u_pri"); if(pri&&pri!==t.priority)u.priority=pri;
+  let cs=null;
+  if(document.querySelector('#u_toggles input[data-blk="blk_case"]').checked){
+    const hear=val("c_hear"); if(hear&&hear<today())return toast("Next hearing date can't be in the past.");
+    cs={court:val("c_court"),judge:val("c_judge"),counsel:val("c_counsel"),section:val("c_section"),
+      lastOrder:val("c_order"),current:val("c_current"),nextAction:val("c_next"),nextHearing:hear,
+      crit:val("c_crit"),phRequired:val("c_ph"),phWho:val("c_phwho"),calendared:val("c_cal"),cnr:val("c_cnr")};
+    if(cs.phRequired==="Yes"&&!cs.phWho)return toast("Personal hearing needs a name from the office.");
+    if(cs.nextHearing&&cs.calendared!=="Yes")toast("Note: the hearing isn't marked as put in the calendar.");
+  }
+  const shot=currentShot();
+  if(shot){
+    let up; try{up=await api("savePhoto",{dataUrl:shot,kind:"task"})}
+    catch(e){return toast("The photo wouldn't file, so nothing was posted: "+e.message)}
+    MEDIA[up.id]=shot;
+    u.photo=up.id; u.upload=!!SHOTUP; if(GPS)u.gps=GPS; else u.gpsNote=val("gpsManual")}
+  let note=null;
+  if(RAUDIO||val("v_text")){
+    let v; try{v=await api("saveVoice",{dataUrl:RAUDIO||"",text:val("v_text"),title:t.no+" — "+t.title})}
+    catch(e){return toast("The voice note wouldn't file: "+e.message)}
+    u.voiceText=val("v_text");
+    if(v.id){u.audio=v.id; MEDIA[v.id]=RAUDIO}
+    note={id:v.id||("n"+Date.now().toString(36)),by:ME,at:iso(now()),title:t.no+" — "+t.title,
+      text:u.voiceText,audio:v.id||"",doc:v.doc||"",dur:RDUR,task:t.id};
+  }
+  const [eh,em]=(CORE.settings.eod||"18:30").split(":").map(Number);
+  const nn=now(); u.late=(nn.getHours()*60+nn.getMinutes())>(eh*60+em);
+  await mutate(c=>{if(note){c.notes=c.notes||[];c.notes.push(note)}
+    const x=c.tasks.find(y=>y.id===id); x.log.push(u); x.status=status;
+    if(u.followUp)x.followUp=u.followUp; if(u.priority)x.priority=u.priority;
+    if(cs){x.case=cs; if(x.type==="General")x.type="Legal case"}
+    if(u.photo&&x.type==="General")x.type="Field visit";
+    if(status==="Completed"){x.completedAt=u.endTime||u.at; x.followUp=""}});
+  SHOT=null; GPS=null; RAUDIO=null; RDUR=0; closeSheet(); toast("Update posted","ok");
+}
+async function stageDone(id,i){
+  const t=CORE.tasks.find(x=>x.id===id), x=stages(t)[i];
+  if(!x||x.done)return;
+  if(!confirm(`Mark “${x.n}” as done? The time is set by the office clock and can't be changed afterwards.`))return;
+  await mutate(c=>{const y=c.tasks.find(z=>z.id===id), st=y.stages[i];
+    st.done=true; st.at=iso(now()); st.by=ME;
+    y.log.push({at:iso(now()),by:ME,status:y.status==="Not started"?"In progress":y.status,
+      comment:"Stage done: "+st.n,stage:st.n});
+    if(y.status==="Not started")y.status="In progress";
+  });
+  const left=stages(CORE.tasks.find(z=>z.id===id)).filter(z=>!z.done).length;
+  toast(left?left+" stage(s) to go":"All stages done — post the final update to close it","ok");
+  taskSheet(id);
+}
+async function saveHandover(id){
+  const to=val("h_who"), note=val("h_note"), fu=val("h_fu");
+  if(!note)return toast("Write a handover note so the next person can pick it up.");
+  await mutate(c=>{const t=c.tasks.find(x=>x.id===id);
+    t.history=(t.history||[]).concat([t.assignee]);
+    t.log.push({at:iso(now()),by:ME,status:"Reassigned",comment:note,reassignTo:to,followUp:fu||""});
+    t.assignee=to; t.status="Reassigned"; if(fu)t.followUp=fu});
+  closeSheet(); toast("Handed to "+nameOf(to),"ok");
+}
+async function saveFields(id){
+  const t0=CORE.tasks.find(x=>x.id===id);
+  const title=val("e_title"); if(!title)return toast("The task needs a title.");
+  const due=val("e_due"); if(due&&due<today())return toast("Deadline can't be in the past.");
+  const who=val("e_who"); if(who===t0.assigner)return toast("A task can't sit with the person who assigned it.");
+  const old=stages(t0);
+  const st=[...document.querySelectorAll("#e_stages > div")].map((row,i)=>{
+    const n=row.querySelector(".es-n").value.trim();
+    const d=row.querySelector(".es-due").value;
+    if(!n)return null;
+    const was=row.dataset.i!==undefined?old[Number(row.dataset.i)]:null;
+    return was&&was.done?was:{n,rule:was?was.rule:"",due:d,done:false,at:"",by:""};
+  }).filter(Boolean);
+  const notes=[];
+  if(title!==t0.title)notes.push("title");
+  if(val("e_desc")!==(t0.desc||""))notes.push("detail");
+  if(who!==t0.assignee)notes.push("moved to "+nameOf(who));
+  if(due!==(t0.deadline||""))notes.push("deadline "+(due?fmtd(due):"cleared"));
+  if(val("e_prop")!==(t0.property||""))notes.push("property "+(val("e_prop")||"cleared"));
+  if(JSON.stringify(st)!==JSON.stringify(old))notes.push("stages");
+  await mutate(c=>{const t=c.tasks.find(x=>x.id===id);
+    if(who!==t.assignee)t.history=(t.history||[]).concat([t.assignee]);
+    t.title=title;t.desc=val("e_desc");t.assignee=who;t.priority=val("e_pri");t.deadline=due;t.stages=st;t.property=val("e_prop");
+    if(notes.length)t.log.push({at:iso(now()),by:ME,status:t.status,comment:"Task edited by "+nameOf(ME)+": "+notes.join(", "),edit:true});
+  });
+  closeSheet(); toast("Saved","ok");
+}
+
+document.addEventListener("change",async e=>{
+  if(!e.target||e.target.id!=="restoreFile")return;
+  const f=e.target.files&&e.target.files[0]; if(!f)return;
+  const txt=await f.text();
+  let data; try{data=JSON.parse(txt)}catch(err){return toast("That file isn't a board backup.")}
+  if(!data||!data.staff||!Array.isArray(data.tasks))return toast("That file isn't a board backup.");
+  if(!confirm(`Replace the board with this backup? ${data.tasks.length} tasks, ${data.staff.length} people. The board as it stands now will be gone.`))return;
+  try{const r=await api("save",{data,expectRev:CORE.rev});
+    if(r.ok){CORE=r.data;CORE.rev=r.rev;render();toast("Board restored","ok")}
+    else toast("Someone saved while that was uploading. Try again.")}
+  catch(e){toast(e.message)}
+});
+
+/* ============================ export ============================ */
+function download(name,text,type){
+  try{const b=new Blob([text],{type:type||"text/plain"}),u=URL.createObjectURL(b),a=document.createElement("a");
+   a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);toast("Downloaded "+name,"ok")}
+  catch(e){copy(text)}
+}
+function copy(text){
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(()=>toast("Copied","ok"),()=>fallbackCopy(text))}
+  else fallbackCopy(text);
+}
+function fallbackCopy(text){
+  sheet(`<div class="bar"><h2 style="font-size:18px">Copy this</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card pad"><textarea style="min-height:50vh;font-family:var(--mono);font-size:12px">${esc(text)}</textarea></div>`);
+  const t=document.querySelector(".sheet textarea"); t.focus(); t.select();
+}
+function exportCSV(){
+  const H=["Docket","Property / company","Title","Type","Assignee","Assigned by","Priority","Status","Deadline","Next follow-up","Last update","Last comment","Court","Judge","Counsel","Sections","Next hearing","Personal hearing","Attends","In calendar","Current status","Next action"];
+  const q=s=>'"'+String(s==null?"":s).replace(/"/g,'""')+'"';
+  const rows=applyF(CORE.tasks).map(t=>{const l=lastUpdate(t)||{},k=t.case||{};
+   return [t.no,t.property||"",t.title,t.type,nameOf(t.assignee),nameOf(t.assigner),t.priority,t.status,t.deadline,t.followUp,l.at?fmt(l.at):"",l.comment||"",k.court,k.judge,k.counsel,k.section,k.nextHearing,k.phRequired,k.phWho,k.calendared,k.current,k.nextAction].map(q).join(",")});
+  download("docket-"+today()+".csv",H.map(q).join(",")+"\n"+rows.join("\n"),"text/csv");
+}
+function attCSV(){
+  const q=x=>'"'+String(x==null?"":x).replace(/"/g,'""')+'"';
+  const rows=[["Date","Person","Role","Entry","Exit","Hours","Late by (min)","Entry GPS","Exit GPS"].map(q).join(",")];
+  const days=[...new Set((CORE.att||[]).map(a=>dstr(a.at)))].sort().reverse();
+  days.forEach(d=>CORE.staff.forEach(s=>{const su=attSummary(s.id,d); if(!su.events.length)return;
+    const i=su.events.find(e=>e.kind==="in"), o=su.events.slice().reverse().find(e=>e.kind==="out");
+    const g=e=>e&&e.gps?e.gps.lat.toFixed(6)+", "+e.gps.lng.toFixed(6):(e?e.note||"no gps":"");
+    rows.push([d,s.name,s.role,su.inAt?tstr(su.inAt):"",su.outAt?tstr(su.outAt):"",su.hours,d===today()?(lateBy(s.id)||""):"",g(i),g(o)].map(q).join(","))}));
+  if(rows.length===1)return toast("No attendance marked yet.");
+  download("attendance-"+today()+".csv",rows.join("\n"),"text/csv");
+}
+function exportICS(){
+  const stamp=d=>d.replace(/-/g,"");
+  const ev=[];
+  CORE.tasks.filter(t=>t.case&&t.case.nextHearing&&open_(t)).forEach(t=>ev.push(
+   `BEGIN:VEVENT\nUID:${t.id}-h@docket\nDTSTAMP:${iso(now()).replace(/[-:]/g,"").split(".")[0]}Z\nDTSTART;VALUE=DATE:${stamp(t.case.nextHearing)}\nSUMMARY:Hearing — ${t.title}\nDESCRIPTION:${t.no} | ${t.case.court||""} | ${t.case.judge||""} | Counsel ${t.case.counsel||""} | Attends ${t.case.phWho||"—"}\nEND:VEVENT`));
+  CORE.tasks.filter(t=>t.followUp&&open_(t)).forEach(t=>ev.push(
+   `BEGIN:VEVENT\nUID:${t.id}-f@docket\nDTSTAMP:${iso(now()).replace(/[-:]/g,"").split(".")[0]}Z\nDTSTART;VALUE=DATE:${stamp(t.followUp)}\nSUMMARY:Follow-up — ${t.title}\nDESCRIPTION:${t.no} | with ${nameOf(t.assignee)}\nEND:VEVENT`));
+  if(!ev.length)return toast("No hearing or follow-up dates to export yet.");
+  download("docket-dates.ics","BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Docket//EN\n"+ev.join("\n")+"\nEND:VCALENDAR","text/calendar");
+}
+function shortDigest(uid){
+  const a=tasksFor(uid), p=a.filter(needsEOD), o=a.filter(overdue), f=a.filter(followDue);
+  const L=t=>`${t.no} ${t.title}${t.deadline?" (due "+fmtd(t.deadline)+")":""}`;
+  let m=`${nameOf(uid)}, status pending as on ${fmtd(today())}:\n`;
+  if(p.length)m+=`\nNo update today:\n`+p.map(L).join("\n")+"\n";
+  if(o.length)m+=`\nPast deadline:\n`+o.map(L).join("\n")+"\n";
+  if(f.length)m+=`\nFollow-up due:\n`+f.map(L).join("\n")+"\n";
+  const sg=a.filter(t=>stageOverdue(t)||stageDueToday(t));
+  if(sg.length)m+=`\nStage due:\n`+sg.map(t=>`${t.no} ${stageLabel(t)}`).join("\n")+"\n";
+  if(!attSummary(uid,today()).inAt)m+=`\nAttendance entry not marked.\n`;
+  m+=`\nPlease update before ${CORE.settings.eod}.`;
+  return m;
+}
+function wa(s){
+  if(!s)return; if(!s.phone)return toast("No mobile number saved for "+s.name+".");
+  if(!digestFor(s.id))return toast("Nothing pending for "+s.name);
+  window.open(`https://wa.me/${dial(s.phone)}?text=${encodeURIComponent(shortDigest(s.id))}`,"_blank","noopener");
+}
+function sms(s){
+  if(!s)return; if(!s.phone)return toast("No mobile number saved for "+s.name+".");
+  if(!digestFor(s.id))return toast("Nothing pending for "+s.name);
+  location.href=`sms:+${dial(s.phone)}?&body=${encodeURIComponent(shortDigest(s.id))}`;
+}
+function mail(s){
+  const d=digestFor(s.id); if(!d)return toast("Nothing pending for "+s.name);
+  const to=s.email||"";
+  location.href=`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+}
+</script>
+</body>
+</html>

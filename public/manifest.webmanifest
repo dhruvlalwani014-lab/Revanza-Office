@@ -1,0 +1,30 @@
+{
+  "name": "Docket Console",
+  "short_name": "Docket",
+  "description": "Task, case and attendance console",
+  "start_url": "/console.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eceef3",
+  "theme_color": "#16213e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
