@@ -180,6 +180,7 @@ async function api(action,payload){
     }
     case "media": return call("/api/docket?action=media&id="+encodeURIComponent(p.id));
     case "sendReminders": return call("/api/docket",{method:"POST",body:JSON.stringify({action:"reminders"})});
+    case "archive": return call("/api/docket",{method:"POST",body:JSON.stringify({action:"archive",id:p.id,archived:p.archived})});
   }
   throw new Error("Unknown action: "+action);
 }
@@ -195,7 +196,7 @@ const ROLES=["Owner","Legal","Documentation","Accounts","Executive","Admin","Eng
 const TYPES=["General","Legal case","Field visit","Documentation","Accounts","Engineering","Admin"];
 const STATUSES=["Not started","In progress","Awaiting input","Blocked","Completed"];
 const CRIT=["Low","Medium","High","Critical"];
-function fresh(){return{v:2,rev:0,seq:0,staff:[],tasks:[],att:[],notes:[],
+function fresh(){return{v:2,rev:0,seq:0,staff:[],tasks:[],att:[],notes:[],archived:[],
  settings:{eod:"18:30",officeName:"Office",reminderHour:"09:00",shiftStart:"09:30",dial:"91",contactsV1:true}}}
 
 function dial(v){const d=String(v||"").replace(/\D/g,"");if(!d)return"";return d.length===10?(CORE.settings.dial||"91")+d:d}
@@ -299,7 +300,7 @@ function toast(msg,kind){ const s=document.getElementById("sheet");
 /* ============================ chrome ============================ */
 const TABS=()=>{
   const t=[["today","Today"],["att","Attendance"],["mine","My tasks"],["all","All tasks"],["voice","Voice notes"],["hear","Hearings"],["photos","Photo log"]];
-  if(isOwner())t.push(["team","Team"],["mail","Reminders"],["audit","Audit"],["setup","Setup"]);
+  if(isOwner())t.push(["team","Team"],["mail","Reminders"],["audit","Audit"],["archived","Archived"],["setup","Setup"]);
   else t.push(["mail","Reminders"]);
   return t;
 };
@@ -315,7 +316,7 @@ function render(){
   renderTabs();
   const app=document.getElementById("app");
   if(!ME){app.innerHTML=offlineBanner()+signIn();return}
-  const v={today:vToday,att:vAtt,mine:vMine,all:vAll,voice:vVoice,hear:vHear,photos:vPhotos,team:vTeam,mail:vMail,audit:vAudit,setup:vSetup}[VIEW]||vToday;
+  const v={today:vToday,att:vAtt,mine:vMine,all:vAll,voice:vVoice,hear:vHear,photos:vPhotos,team:vTeam,mail:vMail,audit:vAudit,archived:vArchived,setup:vSetup}[VIEW]||vToday;
   app.innerHTML=offlineBanner()+v();
   const me=byId(ME);
   let w=document.getElementById("whoBox");
@@ -337,10 +338,10 @@ async function probe(path){
 async function selfTest(){
   const box=document.getElementById("selftest");
   if(box)box.innerHTML=`<div class="small muted">Checking the server…</div>`;
-  const paths=["/api/ping","/api/diag","/api/auth"];
+  const paths=["/api/ping","/api/docket?action=diag","/api/docket?action=staff"];
   const results=[];
   for(const p of paths)results.push(await probe(p));
-  REPORT=["Docket server report","console build 1.5.0","page "+location.href,new Date().toString(),""]
+  REPORT=["Docket server report","console build 1.7.0","page "+location.href,new Date().toString(),""]
     .concat(results.map(r=>`${r.path}  ->  HTTP ${r.status}\n${r.body||"(empty body)"}\n`)).join("\n");
   if(!box)return;
   box.innerHTML=`<div class="card pad" style="margin-top:10px">
@@ -492,6 +493,25 @@ function vAll(){
   return `<div class="sec-head"><h2>All tasks</h2><span class="eyebrow">${a.length}</span></div>`+filters()+
    `<div class="btnrow"><button class="btn" data-act="new">Assign a task</button></div>`+
    (a.length?a.map(card).join(""):`<div class="center">No tasks match these filters.</div>`);
+}
+function vArchived(){
+  if(!isOwner())return `<div class="center">Owners only.</div>`;
+  const a=(CORE.archived||[]).slice().sort((x,y)=>new Date(y.createdAt)-new Date(x.createdAt));
+  return `<div class="sec-head"><h2>Archived tasks</h2><span class="eyebrow">${a.length}</span></div>`+
+   `<p class="small muted" style="margin:0 0 6px">Archived tasks are hidden from every other view but kept on record with their full history. Restore brings one back to All tasks.</p>`+
+   (a.length?a.map(t=>`<div class="docket" style="cursor:default">
+     <div class="spine ${esc(t.priority||"Medium")}"></div>
+     <div class="body">
+       <div class="no">${esc(t.no||"")}${t.property?" · "+esc(t.property):""}</div>
+       <h3>${esc(t.title)}</h3>
+       <div class="row">
+         <span class="tag">${esc(nameOf(t.assignee))}</span>
+         <span class="tag st-${esc(String(t.status||"").replace(/\s/g,""))}">${esc(t.status)}</span>
+         ${t.completedAt?`<span class="tag">done ${fmtd(t.completedAt)}</span>`:""}
+       </div>
+       <div class="btnrow" style="margin-top:8px"><button class="btn ghost sm" data-act="restore" data-id="${t.id}">Restore</button></div>
+     </div>
+   </div>`).join(""):`<div class="center">Nothing archived.</div>`);
 }
 
 /* -------- attendance -------- */
@@ -808,7 +828,7 @@ function vSetup(){
   <div class="card pad"><div class="kv">
     <div class="k">Connection</div><div>${LINKERR?`<b style="color:var(--crit)">last call failed</b> — ${esc(LINKERR)}`:`<b style="color:var(--ok)">connected</b> · office clock ${fmt(now())}`}</div>
     <div class="k">Board revision</div><div class="mono">${CORE.rev||0}</div>
-    <div class="k">Console build</div><div class="mono">1.6.0 · <a href="/api/docket?action=diag" target="_blank" rel="noopener">server check</a></div>
+    <div class="k">Console build</div><div class="mono">1.7.0 · <a href="/api/docket?action=diag" target="_blank" rel="noopener">server check</a></div>
     <div class="k">On the board</div><div>${CORE.tasks.length} tasks · ${CORE.staff.length} people · ${(CORE.att||[]).length} attendance marks · ${(CORE.notes||[]).length} voice notes</div>
     <div class="k">Signed in as</div><div>${esc(nameOf(ME))} <span class="mono tiny">${esc(ME)}</span> · ${tasksFor(ME).length} task(s) assigned to this name</div>
   </div>
@@ -951,7 +971,8 @@ function taskSheet(id){
   h+=`</div></div>`;
   if(canAct)h+=`<div class="btnrow"><button class="btn seal" data-act="update" data-id="${t.id}">Post update</button>
     <button class="btn ghost" data-act="handover" data-id="${t.id}">Hand over</button>
-    ${isOwner()||t.assigner===ME?`<button class="btn ghost" data-act="editfields" data-id="${t.id}">Edit task</button>`:""}</div>`;
+    ${isOwner()||t.assigner===ME?`<button class="btn ghost" data-act="editfields" data-id="${t.id}">Edit task</button>`:""}
+    ${isOwner()?`<button class="btn ghost" data-act="archive" data-id="${t.id}" style="margin-left:auto;color:var(--seal);border-color:var(--seal)">Archive</button>`:""}</div>`;
   h+=`<div class="sec-head"><h2 style="font-size:17px">Update history</h2><span class="eyebrow">${t.log.length}</span></div><div class="card pad">${logHtml(t)}</div>`;
   sheet(h);
   loadPhotos(); loadAudio();
@@ -1262,6 +1283,10 @@ document.addEventListener("click",async e=>{
     case "savehandover": await saveHandover(id); break;
     case "editfields": fieldsSheet(id); break;
     case "savefields": await saveFields(id); break;
+    case "archive": if(!isOwner()){toast("Only the owner can archive a task.");break}
+      if(confirm("Archive this task?\n\nIt will be hidden from every view but kept on record. You can restore it any time from the Archived tab."))
+      {try{const r=await api("archive",{id,archived:true});CORE=r.data;CORE.rev=r.rev;closeSheet();render();toast("Task archived","ok")}catch(err){toast(err.message)}} break;
+    case "restore": {try{const r=await api("archive",{id,archived:false});CORE=r.data;CORE.rev=r.rev;render();toast("Task restored","ok")}catch(err){toast(err.message)}} break;
     case "cam": SHOT=null;SHOTUP=false; startCam(); break;
     case "shoot": shoot(); break;
     case "camoff": stopCam(); document.getElementById("vid").classList.add("hide"); document.getElementById("camBtns").classList.add("hide"); break;

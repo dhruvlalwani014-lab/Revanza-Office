@@ -27,7 +27,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export const VERSION = '1.6.0';
+export const VERSION = '1.7.0';
 
 /* ============================================================ responses */
 
@@ -305,7 +305,9 @@ const STATEMENTS = [
     priority text DEFAULT 'Medium', deadline text DEFAULT '', status text DEFAULT 'Not started',
     follow_up text DEFAULT '', created_at timestamptz DEFAULT now(), completed_at timestamptz,
     case_json jsonb, stages_json jsonb DEFAULT '[]', history_json jsonb DEFAULT '[]',
-    links_json jsonb DEFAULT '[]')`,
+    links_json jsonb DEFAULT '[]', archived boolean DEFAULT false)`,
+  // Migration for databases created before 1.7.0 — idempotent, safe every boot.
+  `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS archived boolean DEFAULT false`,
   `CREATE TABLE IF NOT EXISTS updates (
     id bigserial PRIMARY KEY, task_id text NOT NULL, seq int NOT NULL,
     at timestamptz NOT NULL DEFAULT now(), author text, status text, comment text,
@@ -390,7 +392,12 @@ async function loadBoard() {
   await ensureSchema();
 
   const staffRows = await q('SELECT * FROM staff WHERE active ORDER BY created_at');
-  const taskRows = await q('SELECT * FROM tasks ORDER BY created_at');
+  const taskRows = await q('SELECT * FROM tasks WHERE NOT archived ORDER BY created_at');
+  const archivedRows = await q(
+    `SELECT id, no, property, title, assignee, assigner, priority, status, deadline,
+            created_at, completed_at
+       FROM tasks WHERE archived ORDER BY created_at`
+  );
   const updateRows = await q('SELECT * FROM updates ORDER BY task_id, seq');
   const attRows = await q('SELECT * FROM attendance ORDER BY at DESC LIMIT 2000');
   const noteRows = await q('SELECT * FROM notes ORDER BY at DESC LIMIT 1000');
@@ -481,6 +488,19 @@ async function loadBoard() {
       doc: '',
       dur: n.dur || 0,
       task: n.task_id || ''
+    })),
+    archived: archivedRows.rows.map((t) => ({
+      id: t.id,
+      no: t.no,
+      property: t.property || '',
+      title: t.title,
+      assignee: t.assignee,
+      assigner: t.assigner,
+      priority: t.priority || 'Medium',
+      status: t.status,
+      deadline: t.deadline || '',
+      createdAt: iso(t.created_at),
+      completedAt: iso(t.completed_at)
     }))
   };
 }
@@ -913,6 +933,21 @@ export async function POST(request) {
       const result = await saveBoard(body.data, body.expectRev, me.id);
       const data = await loadBoard();
       if (result.conflict) return json({ ok: false, conflict: true, rev: data.rev, data });
+      return json({ ok: true, rev: data.rev, data });
+    }
+
+    // Archive or restore a task. Owner only. Nothing is deleted — the row and its
+    // whole update history stay; `archived` just hides it from every normal view.
+    if (action === 'archive') {
+      await ensureSchema();
+      requireOwner(await currentUser(request));
+      const id = String(body.id || '');
+      if (!id) throw new HttpError(400, 'No task was named.');
+      const archived = body.archived !== false; // defaults to archiving
+      const res = await sql`UPDATE tasks SET archived = ${archived} WHERE id = ${id}`;
+      if (!res.rowCount) throw new HttpError(404, 'That task is not on the board.');
+      await setSetting('rev', Number(await getSetting('rev', 0)) + 1);
+      const data = await loadBoard();
       return json({ ok: true, rev: data.rev, data });
     }
 
