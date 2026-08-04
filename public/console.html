@@ -303,7 +303,7 @@ async function api(action,payload){
     case "load": return call("/api/docket?action=board");
     case "save": return call("/api/docket",{method:"POST",body:JSON.stringify({action:"save",data:p.data,expectRev:p.expectRev})});
     case "setPin": return call("/api/docket",{method:"POST",body:JSON.stringify(Object.assign({action:"setPin"},p))});
-    case "savePhoto": return call("/api/docket",{method:"POST",body:JSON.stringify({action:"media",dataUrl:p.dataUrl,kind:p.kind||"photo"})});
+    case "savePhoto": return call("/api/docket",{method:"POST",body:JSON.stringify({action:"media",dataUrl:p.dataUrl,kind:p.kind||"photo",name:p.name||""})});
     case "saveVoice": {
       let id="";
       if(p.dataUrl){const r=await call("/api/docket",{method:"POST",body:JSON.stringify({action:"media",dataUrl:p.dataUrl,kind:"voice"})});id=r.id}
@@ -510,7 +510,7 @@ async function selfTest(){
   const paths=["/api/ping","/api/docket?action=diag","/api/docket?action=staff"];
   const results=[];
   for(const p of paths)results.push(await probe(p));
-  REPORT=["Docket server report","console build 1.9.1","page "+location.href,new Date().toString(),""]
+  REPORT=["Docket server report","console build 1.10.0","page "+location.href,new Date().toString(),""]
     .concat(results.map(r=>`${r.path}  ->  HTTP ${r.status}\n${r.body||"(empty body)"}\n`)).join("\n");
   if(!box)return;
   box.innerHTML=`<div class="card pad" style="margin-top:10px">
@@ -1002,7 +1002,7 @@ function vSetup(){
   <div class="card pad"><div class="kv">
     <div class="k">Connection</div><div>${LINKERR?`<b style="color:var(--crit)">last call failed</b> — ${esc(LINKERR)}`:`<b style="color:var(--ok)">connected</b> · office clock ${fmt(now())}`}</div>
     <div class="k">Board revision</div><div class="mono">${CORE.rev||0}</div>
-    <div class="k">Console build</div><div class="mono">1.9.1 · <a href="/api/docket?action=diag" target="_blank" rel="noopener">server check</a></div>
+    <div class="k">Console build</div><div class="mono">1.10.0 · <a href="/api/docket?action=diag" target="_blank" rel="noopener">server check</a></div>
     <div class="k">On the board</div><div>${CORE.tasks.length} tasks · ${CORE.staff.length} people · ${(CORE.att||[]).length} attendance marks · ${(CORE.notes||[]).length} voice notes</div>
     <div class="k">Signed in as</div><div>${esc(nameOf(ME))} <span class="mono tiny">${esc(ME)}</span> · ${tasksFor(ME).length} task(s) assigned to this name</div>
   </div>
@@ -1119,6 +1119,7 @@ function taskSheet(id){
       <div class="k">Counsel</div><div>${esc(k.counsel||"—")}</div>
       <div class="k">Sections</div><div>${esc(k.section||"—")}</div>
       <div class="k">Last order</div><div>${nl(k.lastOrder||"—")}</div>
+      ${k.orderFiles&&k.orderFiles.length?`<div class="k">Order files</div><div>${k.orderFiles.map(f=>`<a href="#" data-act="openfile" data-id="${esc(f.id)}">${esc(f.name||"file")}</a>`).join("<br>")}</div>`:""}
       <div class="k">Current status</div><div>${nl(k.current||"—")}</div>
       <div class="k">Next step</div><div>${nl(k.nextAction||"—")}</div>
       <div class="k">Next hearing</div><div>${k.nextHearing?fmtd(k.nextHearing):"—"}</div>
@@ -1188,9 +1189,49 @@ function cameraHTML(what){return `
     <div class="btnrow hide" id="camBtns"><button class="btn sm" type="button" data-act="shoot">Capture</button><button class="btn ghost sm" type="button" data-act="camoff">Cancel</button></div>
     <label class="hide" id="gpsManualWrap">Location note (GPS blocked)</label><input id="gpsManual" class="hide" placeholder="Site name / landmark">`}
 
+/* ---- managed case drop-downs (grow as staff add "Other" values) ---- */
+const CASE_STATUS_DEFAULTS=["Trial","Order Stage","Counter Stage","Enquiry Stage","Appearance stage"];
+const CASE_ACTION_DEFAULTS=["Discussion","Conference","Briefing","Appearance"];
+function caseOpts(){
+  const o=(CORE.settings&&CORE.settings.caseOptions)||{};
+  return {
+    courts:o.courts||[], judges:o.judges||[], counsels:o.counsels||[], sections:o.sections||[],
+    statuses:(o.statuses&&o.statuses.length)?o.statuses:CASE_STATUS_DEFAULTS.slice(),
+    actions:(o.actions&&o.actions.length)?o.actions:CASE_ACTION_DEFAULTS.slice()
+  };
+}
+/* a <select> of stored options + "Other…"; typing Other reveals a text box that gets saved back to the list */
+function selOther(idBase,label,list,current){
+  const items=list.slice();
+  if(current&&!items.includes(current))items.push(current);
+  const opts=`<option value="">—</option>`+
+    items.map(o=>`<option ${o===current?"selected":""}>${esc(o)}</option>`).join("")+
+    `<option value="__other__">Other…</option>`;
+  return `<label>${esc(label)}</label>
+    <select id="${idBase}" data-otherfor="${idBase}_other">${opts}</select>
+    <input id="${idBase}_other" class="hide" style="margin-top:6px" placeholder="Type a new ${esc(label.toLowerCase())} — saved to the list">`;
+}
+function valOther(idBase){
+  const sel=document.getElementById(idBase); if(!sel)return "";
+  if(sel.value==="__other__")return (val(idBase+"_other")||"").trim();
+  return sel.value||"";
+}
+function fileToDataUrl(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error("could not read "+file.name));r.readAsDataURL(file)})}
+async function uploadOrderFiles(){
+  const inp=document.getElementById("c_orderfiles"), out=[];
+  if(inp&&inp.files&&inp.files.length){
+    for(const f of inp.files){
+      const durl=await fileToDataUrl(f);
+      const up=await api("savePhoto",{dataUrl:durl,kind:"order",name:f.name});
+      out.push({id:up.id,name:f.name,mime:f.type||""});
+    }
+  }
+  return out;
+}
+
 function updateSheet(id){
   const t=CORE.tasks.find(x=>x.id===id); if(!t)return;
-  const light=lightMode(t), k=t.case||{}, hasCase=!!t.case;
+  const light=lightMode(t), k=t.case||{}, hasCase=!!t.case, co=caseOpts();
   let h=`<div class="bar"><h2 style="font-size:18px">Post update</h2><button class="btn ghost sm" data-act="close">Close</button></div>
   <div class="card pad">
     <div class="no mono tiny">${esc(t.no)} · ${esc(t.title)}</div>
@@ -1217,14 +1258,17 @@ function updateSheet(id){
     </div>
     <div id="blk_case" class="${hasCase?"":"hide"}"><hr><div class="eyebrow">Case record</div>
       <div class="grid2">
-        <div><label>Court</label><input id="c_court" value="${esc(k.court||"")}"></div>
-        <div><label>Judge</label><input id="c_judge" value="${esc(k.judge||"")}"></div>
-        <div><label>Counsel</label><input id="c_counsel" value="${esc(k.counsel||"")}"></div>
-        <div><label>Applicable sections</label><input id="c_section" value="${esc(k.section||"")}"></div>
+        <div>${selOther("c_court","Court",co.courts,k.court||"")}</div>
+        <div>${selOther("c_judge","Judge",co.judges,k.judge||"")}</div>
+        <div>${selOther("c_counsel","Counsel",co.counsels,k.counsel||"")}</div>
+        <div>${selOther("c_section","Applicable sections",co.sections,k.section||"")}</div>
       </div>
       <label>Last / current order passed</label><textarea id="c_order">${esc(k.lastOrder||"")}</textarea>
-      <label>Current status of matter</label><textarea id="c_current">${esc(k.current||"")}</textarea>
-      <label>Next course of action</label><textarea id="c_next">${esc(k.nextAction||"")}</textarea>
+      <label>Attach order file(s) <span class="muted" style="font-weight:400">PDF or photo — optional</span></label>
+      ${(k.orderFiles&&k.orderFiles.length)?`<div class="small" style="margin:2px 0 6px">On file: ${k.orderFiles.map(f=>`<a href="#" data-act="openfile" data-id="${esc(f.id)}">${esc(f.name||"file")}</a>`).join(" · ")} <span class="tiny muted">(kept; new files add to these)</span></div>`:""}
+      <input id="c_orderfiles" type="file" accept="image/*,application/pdf" multiple>
+      ${selOther("c_current","Current status of matter",co.statuses,k.current||"")}
+      ${selOther("c_next","Next course of action",co.actions,k.nextAction||"")}
       <div class="grid2">
         <div><label>Next hearing date</label><input id="c_hear" type="date" min="${today()}" value="${esc(k.nextHearing||"")}"></div>
         <div><label>Level of criticality</label><select id="c_crit">${CRIT.map(x=>`<option ${(k.crit||t.priority)===x?"selected":""}>${x}</option>`).join("")}</select></div>
@@ -1245,6 +1289,13 @@ function updateSheet(id){
     i.closest(".chk").classList.toggle("on",i.checked);
     blk.classList.toggle("hide",!i.checked);
     if(i.checked&&i.dataset.blk==="blk_photo")grabGPS();
+  });
+  document.getElementById("blk_case").addEventListener("change",e=>{
+    const s=e.target;
+    if(s.tagName==="SELECT"&&s.dataset.otherfor){
+      const inp=document.getElementById(s.dataset.otherfor);
+      if(inp){const other=s.value==="__other__";inp.classList.toggle("hide",!other);if(other)inp.focus();else inp.value=""}
+    }
   });
 }
 
@@ -1457,6 +1508,12 @@ document.addEventListener("click",async e=>{
     case "savehandover": await saveHandover(id); break;
     case "editfields": fieldsSheet(id); break;
     case "savefields": await saveFields(id); break;
+    case "openfile":{const w=window.open("","_blank");let r;
+      try{r=await api("media",{id})}catch(err){if(w)w.close();return toast(err.message)}
+      try{const b=await(await fetch(r.dataUrl)).blob();const url=URL.createObjectURL(b);
+        if(w){w.location=url}else{const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.click()}
+        setTimeout(()=>URL.revokeObjectURL(url),60000)}
+      catch(e){if(w)w.close();toast("Could not open that file.")}} break;
     case "themes": themeSheet(); break;
     case "settheme": setThemePersonal(el.dataset.theme); themeSheet(); break;
     case "themeoffice": if(isOwner()){await mutate(c=>{c.settings.theme=themePref()}); toast("Office default updated","ok"); themeSheet();} break;
@@ -1552,11 +1609,15 @@ async function saveUpdate(id){
   let cs=null;
   if(document.querySelector('#u_toggles input[data-blk="blk_case"]').checked){
     const hear=val("c_hear"); if(hear&&hear<today())return toast("Next hearing date can't be in the past.");
-    cs={court:val("c_court"),judge:val("c_judge"),counsel:val("c_counsel"),section:val("c_section"),
-      lastOrder:val("c_order"),current:val("c_current"),nextAction:val("c_next"),nextHearing:hear,
+    cs={court:valOther("c_court"),judge:valOther("c_judge"),counsel:valOther("c_counsel"),section:valOther("c_section"),
+      lastOrder:val("c_order"),current:valOther("c_current"),nextAction:valOther("c_next"),nextHearing:hear,
       crit:val("c_crit"),phRequired:val("c_ph"),phWho:val("c_phwho"),calendared:val("c_cal"),cnr:val("c_cnr")};
     if(cs.phRequired==="Yes"&&!cs.phWho)return toast("Personal hearing needs a name from the office.");
     if(cs.nextHearing&&cs.calendared!=="Yes")toast("Note: the hearing isn't marked as put in the calendar.");
+    let files=(t.case&&t.case.orderFiles)||[];
+    try{const nf=await uploadOrderFiles(); files=files.concat(nf);}
+    catch(e){return toast("An order file wouldn't upload, so nothing was posted: "+e.message)}
+    if(files.length)cs.orderFiles=files;
   }
   const shot=currentShot();
   if(shot){
@@ -1578,7 +1639,17 @@ async function saveUpdate(id){
   await mutate(c=>{if(note){c.notes=c.notes||[];c.notes.push(note)}
     const x=c.tasks.find(y=>y.id===id); x.log.push(u); x.status=status;
     if(u.followUp)x.followUp=u.followUp; if(u.priority)x.priority=u.priority;
-    if(cs){x.case=cs; if(x.type==="General")x.type="Legal case"}
+    if(cs){
+      x.case=cs; if(x.type==="General")x.type="Legal case";
+      c.settings.caseOptions=c.settings.caseOptions||{};
+      const co=c.settings.caseOptions;
+      ["courts","judges","counsels","sections","statuses","actions"].forEach(kk=>{if(!Array.isArray(co[kk]))co[kk]=[]});
+      if(!co.statuses.length)co.statuses=CASE_STATUS_DEFAULTS.slice();
+      if(!co.actions.length)co.actions=CASE_ACTION_DEFAULTS.slice();
+      const addo=(kk,v)=>{v=(v||"").trim();if(v&&!co[kk].includes(v))co[kk].push(v)};
+      addo("courts",cs.court);addo("judges",cs.judge);addo("counsels",cs.counsel);addo("sections",cs.section);
+      addo("statuses",cs.current);addo("actions",cs.nextAction);
+    }
     if(u.photo&&x.type==="General")x.type="Field visit";
     if(status==="Completed"){x.completedAt=u.endTime||u.at; x.followUp=""}});
   SHOT=null; GPS=null; RAUDIO=null; RDUR=0; closeSheet(); toast("Update posted","ok");

@@ -13,7 +13,7 @@ export async function GET() {
       {
         ok: true,
         pong: true,
-        version: '1.9.1',
+        version: '1.10.0',
         theOnlyApiRoute: '/api/docket',
         node: process.version,
         region: process.env.VERCEL_REGION || null,

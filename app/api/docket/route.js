@@ -27,7 +27,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export const VERSION = '1.9.1';
+export const VERSION = '1.10.0';
 
 /* ============================================================ responses */
 
@@ -290,7 +290,18 @@ const DEFAULT_SETTINGS = {
     'Revanza Leasing India Private Limited',
     'Thoraipakkam',
     'Others'
-  ]
+  ],
+  // Managed drop-down lists for the case record. Courts/judges/counsels/sections
+  // start empty and grow as staff type new values under "Other". Status and next
+  // action ship with the office's standard stages.
+  caseOptions: {
+    courts: [],
+    judges: [],
+    counsels: [],
+    sections: [],
+    statuses: ['Trial', 'Order Stage', 'Counter Stage', 'Enquiry Stage', 'Appearance stage'],
+    actions: ['Discussion', 'Conference', 'Briefing', 'Appearance']
+  }
 };
 
 const STATEMENTS = [
@@ -326,7 +337,8 @@ const STATEMENTS = [
     task_id text DEFAULT '')`,
   `CREATE TABLE IF NOT EXISTS media (
     id text PRIMARY KEY, owner text, kind text, mime text, data text NOT NULL,
-    created_at timestamptz DEFAULT now())`,
+    name text DEFAULT '', created_at timestamptz DEFAULT now())`,
+  `ALTER TABLE media ADD COLUMN IF NOT EXISTS name text DEFAULT ''`,
   `CREATE TABLE IF NOT EXISTS settings (key text PRIMARY KEY, value jsonb NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS updates_task_idx ON updates (task_id)`,
   `CREATE INDEX IF NOT EXISTS attendance_at_idx ON attendance (at DESC)`,
@@ -827,9 +839,9 @@ export async function GET(request) {
     if (action === 'media') {
       await currentUser(request);
       const id = params.get('id') || '';
-      const { rows } = await sql`SELECT mime, data FROM media WHERE id = ${id}`;
+      const { rows } = await sql`SELECT mime, data, name FROM media WHERE id = ${id}`;
       if (!rows.length) throw new HttpError(404, 'That file is no longer here.');
-      return json({ ok: true, dataUrl: `data:${rows[0].mime};base64,${rows[0].data}` });
+      return json({ ok: true, mime: rows[0].mime, name: rows[0].name || '', dataUrl: `data:${rows[0].mime};base64,${rows[0].data}` });
     }
 
     // Scheduled reminders arrive as a GET carrying the cron secret.
@@ -853,7 +865,8 @@ const ALLOWED_MEDIA = [
   'audio/webm',
   'audio/mp4',
   'audio/ogg',
-  'audio/mpeg'
+  'audio/mpeg',
+  'application/pdf'
 ];
 
 export async function POST(request) {
@@ -959,14 +972,16 @@ export async function POST(request) {
       const mime = match[1];
       const data = match[2];
       if (!ALLOWED_MEDIA.includes(mime)) throw new HttpError(415, `${mime} files are not accepted.`);
-      if (data.length > 6 * 1024 * 1024) {
-        throw new HttpError(413, 'That file is too large. Take the photo again at a smaller size.');
+      // PDFs (order copies) get more headroom than a phone photo.
+      const cap = mime === 'application/pdf' ? 10 * 1024 * 1024 : 6 * 1024 * 1024;
+      if (data.length > cap) {
+        throw new HttpError(413, 'That file is too large. Use a smaller scan or photo.');
       }
 
       const c = await nodeCrypto();
       const id = c.randomUUID();
-      await sql`INSERT INTO media (id, owner, kind, mime, data)
-                VALUES (${id}, ${me.id}, ${String(body.kind || 'file')}, ${mime}, ${data})`;
+      await sql`INSERT INTO media (id, owner, kind, mime, data, name)
+                VALUES (${id}, ${me.id}, ${String(body.kind || 'file')}, ${mime}, ${data}, ${String(body.name || '')})`;
       return json({ ok: true, id });
     }
 
