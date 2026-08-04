@@ -7,17 +7,63 @@
 <link rel="apple-touch-icon" href="/icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Docket">
-<meta name="theme-color" content="#16213e">
+<meta name="theme-color" content="#ffffff">
 <meta name="robots" content="noindex,nofollow">
 <title>Docket — Task &amp; Case Console</title>
 <style>
 :root{
-  --ink:#16213e; --ink-2:#3b4763; --paper:#eceef3; --card:#ffffff; --line:#d9dde6;
-  --seal:#7c1f2b; --steel:#2b5f75; --ok:#1f6b4a; --warn:#9a6410; --crit:#a3212f;
-  --shadow:0 1px 2px rgba(22,33,62,.06),0 8px 24px rgba(22,33,62,.06);
+  /* fonts (shared) */
   --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  /* ---- default palette = Chambers ---- */
+  --ink:#1b2233; --ink-2:#5a6072; --paper:#f5f2ea; --card:#ffffff; --line:#e7e0cf;
+  --seal:#7c1f2b; --steel:#2b5f75; --ok:#1f6b4a; --warn:#9a6410; --crit:#a3212f;
+  --shadow:0 1px 2px rgba(22,33,62,.05),0 12px 28px rgba(22,33,62,.05);
+  --head-bg:#20283c; --head-fg:#ffffff; --head-accent:#c9a25a;
+  --tab-bg:#28324a; --tab-fg:#aeb6cc; --tab-on:#ffffff; --tab-line:transparent; --tab-pill:transparent;
+  --font-head:var(--serif); --radius:12px; --accent:#20283c; --accent-2:#c9a25a;
+  --field:#fbfcfd; --field-2:#f0f2f6; --chip:#eef1f6;
+  --btn-fg:#fff; --head-glass:rgba(32,40,60,.82); --tab-glass:rgba(40,50,74,.72); --sheet-glass:rgba(245,242,234,.86);
+}
+/* ============================ THEMES ============================ */
+body.theme-chambers{ /* same as :root default — explicit for the picker */
+  --ink:#1b2233; --ink-2:#5a6072; --paper:#f5f2ea; --card:#fff; --line:#e7e0cf;
+  --head-bg:#20283c; --head-fg:#fff; --head-accent:#c9a25a;
+  --tab-bg:#28324a; --tab-fg:#aeb6cc; --tab-on:#fff;
+  --font-head:var(--serif); --radius:12px; --accent:#20283c; --accent-2:#c9a25a;
+  --field:#fbfcfd; --field-2:#f0f2f6; --chip:#eef1f6;
+  --btn-fg:#fff; --head-glass:rgba(32,40,60,.82); --tab-glass:rgba(40,50,74,.72); --sheet-glass:rgba(245,242,234,.86);
+}
+body.theme-slate{
+  --ink:#15171d; --ink-2:#6b7280; --paper:#fafafb; --card:#fff; --line:#ececf1;
+  --seal:#c33d30; --steel:#4646c8; --ok:#1f7a54; --warn:#b0730f; --crit:#d1483a;
+  --head-bg:#ffffff; --head-fg:#15171d; --head-accent:#5b5bd6;
+  --tab-bg:#ffffff; --tab-fg:#6b7280; --tab-on:#5b5bd6; --tab-line:#ececf1;
+  --font-head:var(--sans); --radius:14px; --accent:#5b5bd6; --accent-2:#5b5bd6;
+  --field:#fbfbfd; --field-2:#f4f4f7; --chip:#f4f4f7;
+  --shadow:0 1px 3px rgba(16,24,40,.05);
+  --btn-fg:#fff; --head-glass:rgba(255,255,255,.8); --tab-glass:rgba(255,255,255,.78); --sheet-glass:rgba(250,250,251,.9);
+}
+body.theme-ivory{
+  --ink:#282320; --ink-2:#6f6658; --paper:#f1ece4; --card:#fffdfb; --line:#ece4d6;
+  --seal:#a3212f; --steel:#1f6b4a; --ok:#1f6b4a; --warn:#9a6410; --crit:#a3212f;
+  --head-bg:#fffdfb; --head-fg:#282320; --head-accent:#1f6b4a;
+  --tab-bg:#fffdfb; --tab-fg:#6f6658; --tab-on:#fff; --tab-line:#e8e0d2; --tab-pill:#f4efe7;
+  --font-head:var(--sans); --radius:18px; --accent:#1f6b4a; --accent-2:#c8892b;
+  --field:#fffdfb; --field-2:#f4efe7; --chip:#f4efe7;
+  --shadow:0 2px 5px rgba(40,35,32,.045),0 16px 34px rgba(40,35,32,.05);
+  --btn-fg:#fff; --head-glass:rgba(255,253,251,.82); --tab-glass:rgba(255,253,251,.8); --sheet-glass:rgba(255,253,251,.9);
+}
+body.theme-graphite{
+  --ink:#e7ecf3; --ink-2:#94a1b2; --paper:#0d1016; --card:#171d27; --line:#2a323f;
+  --seal:#ff6b81; --steel:#4bd0c0; --ok:#4bd0c0; --warn:#f0a24b; --crit:#ff6b81;
+  --head-bg:#141922; --head-fg:#e7ecf3; --head-accent:#4bd0c0;
+  --tab-bg:#10141c; --tab-fg:#8493a6; --tab-on:#141922; --tab-line:#2a323f; --tab-pill:#1a212c;
+  --font-head:var(--sans); --radius:16px; --accent:#4bd0c0; --accent-2:#f0a24b;
+  --field:#1a212c; --field-2:#222b38; --chip:#222b38;
+  --shadow:0 12px 34px rgba(0,0,0,.4);
+  --btn-fg:#06232a; --head-glass:rgba(20,25,34,.72); --tab-glass:rgba(16,20,28,.66); --sheet-glass:rgba(23,29,39,.92);
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -28,21 +74,39 @@ a{color:var(--steel)}
 .wrap{max-width:1040px;margin:0 auto;padding:0 14px 96px}
 
 /* Masthead */
-header.top{background:var(--ink);color:#fff;position:sticky;top:0;z-index:40;box-shadow:0 2px 10px rgba(0,0,0,.18)}
-.top-in{max-width:1040px;margin:0 auto;padding:10px 14px;display:flex;align-items:center;gap:12px}
+header.top{background:var(--head-bg);color:var(--head-fg);position:sticky;top:0;z-index:40;box-shadow:0 2px 10px rgba(0,0,0,.14);border-bottom:2px solid var(--head-accent)}
+.top-in{max-width:1040px;margin:0 auto;padding:11px 14px;display:flex;align-items:center;gap:12px}
+.lockup{display:flex;align-items:center;gap:11px;min-width:0}
+.emblem{height:38px;width:auto;display:block;flex:0 0 auto}
+.wordmark .wm{font-family:var(--font-head);font-weight:700;font-size:17px;letter-spacing:.13em;line-height:1;color:var(--head-fg)}
+.wordmark .ws{font-size:10px;letter-spacing:.04em;margin-top:3px;color:var(--head-fg);opacity:.62}
 .brand{font-family:var(--serif);font-size:19px;letter-spacing:.02em}
-.brand span{color:#c9a25a}
-.clock{margin-left:auto;font-family:var(--mono);font-size:12px;color:#b9c2d6;text-align:right;line-height:1.25}
+.brand span{color:var(--head-accent)}
+.clock{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--head-fg);opacity:.72;text-align:right;line-height:1.25}
 .who{display:flex;align-items:center;gap:8px}
-.avatar{width:30px;height:30px;border-radius:50%;background:#c9a25a;color:var(--ink);display:grid;place-items:center;font-weight:700;font-size:13px;font-family:var(--sans)}
-nav.tabs{background:#1e2b4d;overflow-x:auto;position:sticky;top:52px;z-index:39;-webkit-overflow-scrolling:touch}
+.who .whoname,.who > div:not(.avatar){color:var(--head-fg)}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--head-accent);color:var(--head-bg);display:grid;place-items:center;font-weight:700;font-size:13px;font-family:var(--sans)}
+nav.tabs{background:var(--tab-bg);overflow-x:auto;position:sticky;top:60px;z-index:39;-webkit-overflow-scrolling:touch;border-bottom:1px solid var(--tab-line)}
 nav.tabs .n{max-width:1040px;margin:0 auto;display:flex;gap:2px;padding:0 8px;white-space:nowrap}
-nav.tabs button{background:none;border:0;color:#aab4cd;padding:11px 12px;font-size:13px;font-family:var(--sans);cursor:pointer;border-bottom:2px solid transparent}
-nav.tabs button.on{color:#fff;border-bottom-color:#c9a25a}
+nav.tabs button{background:none;border:0;color:var(--tab-fg);padding:12px 12px;font-size:13px;font-family:var(--sans);cursor:pointer;border-bottom:2px solid transparent;font-weight:500}
+nav.tabs button.on{color:var(--tab-on);border-bottom-color:var(--head-accent);font-weight:600}
 nav.tabs .pill{background:var(--seal);color:#fff;border-radius:9px;padding:0 6px;font-size:11px;margin-left:5px;font-family:var(--mono)}
+/* Pill-style tabs (ivory / graphite) */
+body.tabs-pill nav.tabs .n{gap:6px;padding:9px 10px}
+body.tabs-pill nav.tabs button{border:1px solid var(--tab-line);border-radius:22px;padding:8px 14px;background:var(--tab-pill)}
+body.tabs-pill nav.tabs button.on{background:var(--head-accent);color:var(--head-bg);border-color:var(--head-accent)}
+/* Theme picker swatches */
+.theme-row{display:flex;align-items:center;justify-content:space-between;width:100%;margin:9px 0;padding:12px 14px;text-align:left}
+.theme-row.sel{border-color:var(--accent);border-width:2px;padding:11px 13px}
+.theme-swatch{width:46px;height:30px;border-radius:8px;flex:0 0 auto;border:1px solid rgba(0,0,0,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)}
+.tsw-chambers{background:linear-gradient(120deg,#20283c 0 52%,#c9a25a 52% 100%)}
+.tsw-slate{background:linear-gradient(120deg,#f4f4f7 0 52%,#5b5bd6 52% 100%)}
+.tsw-ivory{background:linear-gradient(120deg,#fffdfb 0 52%,#1f6b4a 52% 100%)}
+.tsw-graphite{background:linear-gradient(120deg,#141922 0 52%,#4bd0c0 52% 100%)}
+.iconbtn{margin-left:6px;padding:4px 9px;font-size:15px;line-height:1}
 
 /* Cards */
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);margin:14px 0;overflow:hidden}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin:14px 0;overflow:hidden}
 .card .pad{padding:14px}
 .sec-head{display:flex;align-items:baseline;gap:10px;margin:22px 0 4px}
 .sec-head h2{font-size:20px}
@@ -52,7 +116,7 @@ nav.tabs .pill{background:var(--seal);color:#fff;border-radius:9px;padding:0 6px
 .tiny{font-size:11.5px}
 
 /* Docket strip = signature element */
-.docket{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);margin:10px 0;overflow:hidden;cursor:pointer}
+.docket{display:flex;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin:10px 0;overflow:hidden;cursor:pointer}
 .docket:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
 .spine{width:7px;flex:0 0 7px;background:var(--ink-2)}
 .spine.Low{background:#9aa4bb}.spine.Medium{background:var(--steel)}
@@ -61,7 +125,7 @@ nav.tabs .pill{background:var(--seal);color:#fff;border-radius:9px;padding:0 6px
 .docket .no{font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.06em}
 .docket h3{font-size:16px;margin:2px 0 4px;line-height:1.25}
 .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.tag{font-size:11px;font-family:var(--mono);padding:2px 7px;border-radius:4px;background:#eef1f6;color:var(--ink-2);border:1px solid var(--line)}
+.tag{font-size:11px;font-family:var(--mono);padding:2px 7px;border-radius:4px;background:var(--chip);color:var(--ink-2);border:1px solid var(--line)}
 .tag.st-Completed{background:#e6f2ec;color:var(--ok);border-color:#bfdfd0}
 .tag.st-InProgress{background:#e7eef3;color:var(--steel);border-color:#c6d9e3}
 .tag.st-Blocked{background:#fbe9ea;color:var(--crit);border-color:#f0c9cc}
@@ -75,18 +139,18 @@ nav.tabs .pill{background:var(--seal);color:#fff;border-radius:9px;padding:0 6px
 /* Forms */
 label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:12px 0 4px;letter-spacing:.01em}
 label .req{color:var(--seal)}
-input,select,textarea{width:100%;font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:#fbfcfd;color:var(--ink)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--steel);outline-offset:0;background:#fff}
+input,select,textarea{width:100%;font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:var(--field);color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--steel);outline-offset:0;background:var(--card)}
 textarea{min-height:70px;resize:vertical}
-input[readonly]{background:#f0f2f6;color:var(--ink-2)}
+input[readonly]{background:var(--field-2);color:var(--ink-2)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
 @media(max-width:640px){.grid2{grid-template-columns:1fr}}
 .checks{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
-.chk{display:flex;align-items:center;gap:6px;font-size:13px;background:#f5f7fa;border:1px solid var(--line);padding:6px 10px;border-radius:20px;cursor:pointer;font-weight:500;color:var(--ink)}
+.chk{display:flex;align-items:center;gap:6px;font-size:13px;background:var(--chip);border:1px solid var(--line);padding:6px 10px;border-radius:20px;cursor:pointer;font-weight:500;color:var(--ink)}
 .chk input{width:auto;padding:0;margin:0}
-.chk.on{background:#e7eef3;border-color:var(--steel)}
-button.btn{font:inherit;font-size:14px;font-weight:600;padding:10px 16px;border-radius:7px;border:1px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer}
-button.btn.ghost{background:#fff;color:var(--ink)}
+.chk.on{background:var(--field-2);border-color:var(--steel)}
+button.btn{font:inherit;font-size:14px;font-weight:600;padding:10px 16px;border-radius:7px;border:1px solid var(--accent);background:var(--accent);color:var(--btn-fg);cursor:pointer}
+button.btn.ghost{background:var(--card);color:var(--ink);border-color:var(--line)}
 button.btn.seal{background:var(--seal);border-color:var(--seal)}
 button.btn.sm{padding:6px 11px;font-size:13px}
 button.btn:disabled{opacity:.5}
@@ -132,10 +196,10 @@ body{background:
 
 /* Frosted surfaces — only where it reads well (chrome + sheets), content stays solid. */
 @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  header.top{background:rgba(22,33,62,.72);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);box-shadow:0 1px 0 rgba(255,255,255,.06),0 6px 20px rgba(0,0,0,.16)}
-  nav.tabs{background:rgba(28,40,72,.66);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%)}
+  header.top{background:var(--head-glass);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);box-shadow:0 1px 0 rgba(255,255,255,.04),0 6px 20px rgba(0,0,0,.12)}
+  nav.tabs{background:var(--tab-glass);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%)}
   .sheet{background:rgba(10,15,30,.30);-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px)}
-  .sheet .inner{background:rgba(236,238,243,.85);-webkit-backdrop-filter:blur(30px) saturate(180%);backdrop-filter:blur(30px) saturate(180%)}
+  .sheet .inner{background:var(--sheet-glass);-webkit-backdrop-filter:blur(30px) saturate(180%);backdrop-filter:blur(30px) saturate(180%)}
 }
 
 /* Thin Safari-style progress bar: acknowledges every tap the instant the network starts. */
@@ -177,11 +241,14 @@ nav.tabs button.on{text-shadow:0 0 12px rgba(201,162,90,.4)}
 }
 </style>
 </head>
-<body>
+<body class="theme-slate">
 <div id="netbar"></div>
 <header class="top">
   <div class="top-in">
-    <div class="brand">DOCKET<span>·</span>console</div>
+    <div class="lockup">
+      <img class="emblem" src="/logo.png" alt="Revanza" width="34" height="41">
+      <div class="wordmark"><div class="wm">REVANZA</div><div class="ws">Task &amp; Case Console</div></div>
+    </div>
     <div class="clock" id="clock">—</div>
   </div>
 </header>
@@ -324,7 +391,41 @@ function notesFor(uid){return (CORE.notes||[]).filter(n=>n.by===uid).sort((a,b)=
 function lightMode(t){return !!t.deadline&&daysTo(t.deadline)>0}
 
 /* ============================ boot ============================ */
+/* ============================ theme ============================ */
+const THEMES=[["chambers","Chambers"],["slate","Slate"],["ivory","Ivory Pro"],["graphite","Graphite"]];
+const THEME_META={chambers:"#20283c",slate:"#ffffff",ivory:"#fffdfb",graphite:"#141922"};
+const THEME_DESC={chambers:"Serif law-firm elegance",slate:"Crisp modern software",ivory:"Warm premium light",graphite:"Modern dark glass"};
+function themePref(){
+  try{const p=localStorage.getItem("docket:theme");if(p&&THEMES.some(t=>t[0]===p))return p}catch(e){}
+  const s=CORE&&CORE.settings&&CORE.settings.theme;
+  return (s&&THEMES.some(t=>t[0]===s))?s:"slate";
+}
+function applyTheme(name){
+  const t=THEMES.some(x=>x[0]===name)?name:"slate";
+  document.body.className="theme-"+t+((t==="ivory"||t==="graphite")?" tabs-pill":"");
+  const m=document.querySelector('meta[name="theme-color"]');
+  if(m)m.setAttribute("content",THEME_META[t]);
+}
+function setThemePersonal(name){try{localStorage.setItem("docket:theme",name)}catch(e){}applyTheme(name);render()}
+function themeSheet(){
+  const cur=themePref();
+  const rows=THEMES.map(([k,label])=>`<button class="btn ghost theme-row ${k===cur?"sel":""}" data-act="settheme" data-theme="${k}">
+     <span><b>${esc(label)}</b><br><span class="tiny muted">${esc(THEME_DESC[k])}</span></span>
+     <span class="theme-swatch tsw-${k}"></span></button>`).join("");
+  const curLabel=(THEMES.find(t=>t[0]===cur)||THEMES[0])[1];
+  const isOffice=CORE.settings&&CORE.settings.theme===cur;
+  let h=`<div class="bar"><h2 style="font-size:18px">Appearance</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card pad">
+    <p class="small muted" style="margin:0 0 4px">Choose a look for this device — it applies instantly.${isOwner()?" As owner you can also set the office-wide default.":" Saved on this device only."}</p>
+    ${rows}
+    ${isOwner()?`<hr><div class="btnrow"><button class="btn" data-act="themeoffice" ${isOffice?"disabled":""}>${isOffice?`“${esc(curLabel)}” is the office default`:`Set “${esc(curLabel)}” as office default`}</button></div>
+      <p class="tiny muted">The office default applies to anyone who hasn't picked their own look.</p>`:""}
+  </div>`;
+  sheet(h);
+}
+
 (async function boot(){
+  applyTheme(themePref());
   tick(); setInterval(tick,1000);
   try{const bs=await api("bootstrap");CORE.staff=bs.staff}
   catch(e){LINKERR=e.message; setTimeout(selfTest,50)}
@@ -379,6 +480,7 @@ document.getElementById("tabs").addEventListener("click",e=>{const b=e.target.cl
 /* animate=true plays the view-in transition (used on user-driven tab changes,
    never on the 30-second background sync so the screen doesn't twitch). */
 function render(animate){
+  applyTheme(themePref());
   renderTabs();
   const app=document.getElementById("app");
   if(!ME){app.innerHTML=offlineBanner()+signIn();return}
@@ -388,7 +490,7 @@ function render(animate){
   let w=document.getElementById("whoBox");
   if(!w){w=document.createElement("div");w.id="whoBox";w.className="who";document.querySelector(".top-in").insertBefore(w,document.querySelector(".clock"))}
   loadPhotos(); loadAudio();
-  w.innerHTML=`<div class="avatar">${esc(me.name[0])}</div><div style="font-size:12px;line-height:1.15">${esc(me.name)}<br><span style="color:#b9c2d6">${esc(me.role)}</span></div><button class="btn ghost sm" data-act="signout" style="margin-left:6px;padding:4px 8px">Switch</button>`;
+  w.innerHTML=`<div class="avatar">${esc(me.name[0])}</div><div style="font-size:12px;line-height:1.15">${esc(me.name)}<br><span style="opacity:.7">${esc(me.role)}</span></div><button class="btn ghost sm iconbtn" data-act="themes" title="Appearance" aria-label="Appearance">◐</button><button class="btn ghost sm" data-act="signout" style="margin-left:6px;padding:4px 8px">Switch</button>`;
   if(animate){app.classList.remove("anim");void app.offsetWidth;app.classList.add("anim")}
 }
 let REPORT="";
@@ -408,7 +510,7 @@ async function selfTest(){
   const paths=["/api/ping","/api/docket?action=diag","/api/docket?action=staff"];
   const results=[];
   for(const p of paths)results.push(await probe(p));
-  REPORT=["Docket server report","console build 1.8.0","page "+location.href,new Date().toString(),""]
+  REPORT=["Docket server report","console build 1.9.1","page "+location.href,new Date().toString(),""]
     .concat(results.map(r=>`${r.path}  ->  HTTP ${r.status}\n${r.body||"(empty body)"}\n`)).join("\n");
   if(!box)return;
   box.innerHTML=`<div class="card pad" style="margin-top:10px">
@@ -851,7 +953,12 @@ function vAudit(){
 
 /* -------- setup -------- */
 function vSetup(){
+  const curTheme=(THEMES.find(t=>t[0]===themePref())||THEMES[0])[1];
   return `<div class="sec-head"><h2>Setup</h2></div>
+  <div class="card pad" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div><b>Appearance</b><div class="tiny muted">Current: ${esc(curTheme)}${CORE.settings&&CORE.settings.theme?` · office default ${esc((THEMES.find(t=>t[0]===CORE.settings.theme)||[])[1]||"")}`:""}</div></div>
+    <button class="btn ghost sm" data-act="themes">Change theme</button>
+  </div>
   <div class="card pad">
     <label>Office name</label><input id="s_office" value="${esc(CORE.settings.officeName)}">
     <div class="grid2">
@@ -895,7 +1002,7 @@ function vSetup(){
   <div class="card pad"><div class="kv">
     <div class="k">Connection</div><div>${LINKERR?`<b style="color:var(--crit)">last call failed</b> — ${esc(LINKERR)}`:`<b style="color:var(--ok)">connected</b> · office clock ${fmt(now())}`}</div>
     <div class="k">Board revision</div><div class="mono">${CORE.rev||0}</div>
-    <div class="k">Console build</div><div class="mono">1.8.0 · <a href="/api/docket?action=diag" target="_blank" rel="noopener">server check</a></div>
+    <div class="k">Console build</div><div class="mono">1.9.1 · <a href="/api/docket?action=diag" target="_blank" rel="noopener">server check</a></div>
     <div class="k">On the board</div><div>${CORE.tasks.length} tasks · ${CORE.staff.length} people · ${(CORE.att||[]).length} attendance marks · ${(CORE.notes||[]).length} voice notes</div>
     <div class="k">Signed in as</div><div>${esc(nameOf(ME))} <span class="mono tiny">${esc(ME)}</span> · ${tasksFor(ME).length} task(s) assigned to this name</div>
   </div>
@@ -1350,6 +1457,9 @@ document.addEventListener("click",async e=>{
     case "savehandover": await saveHandover(id); break;
     case "editfields": fieldsSheet(id); break;
     case "savefields": await saveFields(id); break;
+    case "themes": themeSheet(); break;
+    case "settheme": setThemePersonal(el.dataset.theme); themeSheet(); break;
+    case "themeoffice": if(isOwner()){await mutate(c=>{c.settings.theme=themePref()}); toast("Office default updated","ok"); themeSheet();} break;
     case "archive": if(!isOwner()){toast("Only the owner can archive a task.");break}
       if(confirm("Archive this task?\n\nIt will be hidden from every view but kept on record. You can restore it any time from the Archived tab."))
       {try{const r=await api("archive",{id,archived:true});CORE=r.data;CORE.rev=r.rev;closeSheet();render();toast("Task archived","ok")}catch(err){toast(err.message)}} break;
