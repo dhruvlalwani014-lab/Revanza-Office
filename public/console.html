@@ -121,9 +121,64 @@ video,canvas.cap{width:100%;border-radius:8px;background:#111;display:block}
 hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 ::-webkit-scrollbar{height:6px;width:6px}::-webkit-scrollbar-thumb{background:#c3c9d6;border-radius:3px}
 @media (prefers-reduced-motion:no-preference){.docket{transition:transform .12s ease}.docket:active{transform:scale(.995)}}
+
+/* ===================== iPhone-style frosted glass + motion ===================== */
+/* Soft ambient background so translucent surfaces have depth to blur. */
+body{background:
+  radial-gradient(1100px 560px at 12% -8%, rgba(124,31,43,.055), transparent 60%),
+  radial-gradient(950px 520px at 100% -4%, rgba(43,95,117,.075), transparent 55%),
+  var(--paper);
+  background-attachment:fixed}
+
+/* Frosted surfaces — only where it reads well (chrome + sheets), content stays solid. */
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  header.top{background:rgba(22,33,62,.72);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);box-shadow:0 1px 0 rgba(255,255,255,.06),0 6px 20px rgba(0,0,0,.16)}
+  nav.tabs{background:rgba(28,40,72,.66);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%)}
+  .sheet{background:rgba(10,15,30,.30);-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px)}
+  .sheet .inner{background:rgba(236,238,243,.85);-webkit-backdrop-filter:blur(30px) saturate(180%);backdrop-filter:blur(30px) saturate(180%)}
+}
+
+/* Thin Safari-style progress bar: acknowledges every tap the instant the network starts. */
+#netbar{position:fixed;top:0;left:0;height:2.5px;width:0;z-index:100;pointer-events:none;
+  background:linear-gradient(90deg,var(--steel),#c9a25a);opacity:0;box-shadow:0 0 10px rgba(201,162,90,.55)}
+#netbar.on{opacity:1;width:82%;transition:width 9s cubic-bezier(.08,.72,.28,1),opacity .18s ease}
+#netbar.done{opacity:0;width:100%;transition:width .2s ease,opacity .45s ease .05s}
+
+/* Sheet: dim fades in, panel springs up. */
+.sheet{animation:glassFade .24s ease both}
+.sheet .inner{animation:sheetUp .42s cubic-bezier(.22,1.12,.34,1) both;
+  border:1px solid rgba(255,255,255,.45);box-shadow:0 -6px 44px rgba(10,15,30,.30)}
+@keyframes glassFade{from{opacity:0}to{opacity:1}}
+@keyframes sheetUp{from{transform:translateY(30px) scale(.985);opacity:0}to{transform:none;opacity:1}}
+
+/* View content eases in on a tab change (not on background sync). */
+#app.anim{animation:viewIn .30s cubic-bezier(.22,1,.36,1) both}
+@keyframes viewIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+
+/* Tactile press feedback everywhere it's tappable. */
+button.btn,.chk,nav.tabs button,label.btn{transition:transform .13s cubic-bezier(.22,1,.36,1),background .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease}
+button.btn:active,.chk:active,label.btn:active{transform:scale(.955)}
+nav.tabs button:active{transform:scale(.93)}
+nav.tabs button.on{text-shadow:0 0 12px rgba(201,162,90,.4)}
+.docket{transition:transform .15s cubic-bezier(.22,1,.36,1),box-shadow .22s ease}
+.docket:active{transform:scale(.985)}
+@media(hover:hover){.docket:hover{transform:translateY(-1px);box-shadow:0 1px 2px rgba(22,33,62,.06),0 16px 40px rgba(22,33,62,.12)}
+  button.btn:hover{filter:brightness(1.04)}}
+.card{transition:box-shadow .25s ease}
+.tag,.avatar{transition:transform .15s ease,background .2s ease}
+
+/* Toasts glide up instead of appearing. */
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* Honour the OS "reduce motion" setting: keep it usable, drop the movement. */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+  #netbar{display:none}
+}
 </style>
 </head>
 <body>
+<div id="netbar"></div>
 <header class="top">
   <div class="top-in">
     <div class="brand">DOCKET<span>·</span>console</div>
@@ -139,25 +194,34 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 /* ============================ server link ============================ */
 let PIN="", TOKEN="", SKEW=0, LINKERR="", MEDIA={};
 
+/* Slim top progress bar — gives the interface an instant reaction to every tap,
+   so a slow network reads as "working" rather than "frozen". */
+let INFLIGHT=0, NETDONE=null;
+function netStart(){INFLIGHT++;const b=document.getElementById("netbar");if(b){clearTimeout(NETDONE);b.classList.remove("done");b.classList.add("on")}}
+function netEnd(){INFLIGHT=Math.max(0,INFLIGHT-1);if(INFLIGHT)return;const b=document.getElementById("netbar");if(!b)return;b.classList.remove("on");b.classList.add("done");NETDONE=setTimeout(()=>b.classList.remove("done"),480)}
+
 async function call(path,opts){
   const o=Object.assign({headers:{}},opts||{});
   o.headers["content-type"]="application/json";
   if(TOKEN)o.headers.authorization="Bearer "+TOKEN;
-  let r;
-  try{r=await fetch(path,o)}
-  catch(e){LINKERR="No connection.";throw new Error("No connection. Check your signal and try again.")}
-  let j={}, raw="";
-  try{raw=await r.text(); j=raw?JSON.parse(raw):{}}catch(e){}
-  if(j&&j.serverNow)SKEW=new Date(j.serverNow).getTime()-Date.now();
-  if(r.status===401){TOKEN="";clearCreds();throw new Error(j.error||"Your session has expired. Sign in again.")}
-  if(!r.ok&&!j.conflict){
-    /* a crashed function returns HTML, not JSON — show whatever it did say */
-    const plain=raw.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,240);
-    LINKERR=j.error||(plain?("The server said "+r.status+": "+plain):("The server said "+r.status));
-    throw new Error(LINKERR);
-  }
-  LINKERR="";
-  return j;
+  netStart();
+  try{
+    let r;
+    try{r=await fetch(path,o)}
+    catch(e){LINKERR="No connection.";throw new Error("No connection. Check your signal and try again.")}
+    let j={}, raw="";
+    try{raw=await r.text(); j=raw?JSON.parse(raw):{}}catch(e){}
+    if(j&&j.serverNow)SKEW=new Date(j.serverNow).getTime()-Date.now();
+    if(r.status===401){TOKEN="";clearCreds();throw new Error(j.error||"Your session has expired. Sign in again.")}
+    if(!r.ok&&!j.conflict){
+      /* a crashed function returns HTML, not JSON — show whatever it did say */
+      const plain=raw.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,240);
+      LINKERR=j.error||(plain?("The server said "+r.status+": "+plain):("The server said "+r.status));
+      throw new Error(LINKERR);
+    }
+    LINKERR="";
+    return j;
+  } finally { netEnd(); }
 }
 
 /** The same call shape the console has always used, now over HTTP. */
@@ -293,7 +357,7 @@ async function mutate(fn){
 }
 function toast(msg,kind){ const s=document.getElementById("sheet");
   const d=document.createElement("div");
-  d.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:"+(kind==="ok"?"#1f6b4a":"#16213e")+";color:#fff;padding:11px 16px;border-radius:8px;z-index:99;font-size:14px;max-width:90vw;box-shadow:0 6px 24px rgba(0,0,0,.3)";
+  d.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:"+(kind==="ok"?"#1f6b4a":"#16213e")+";color:#fff;padding:11px 16px;border-radius:10px;z-index:99;font-size:14px;max-width:90vw;box-shadow:0 6px 28px rgba(0,0,0,.34);animation:toastIn .3s cubic-bezier(.22,1,.36,1) both;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)";
   d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),3200);
 }
 
@@ -309,10 +373,12 @@ function renderTabs(){
   const pend=CORE.tasks.filter(t=>visible(t)&&(isOwner()?needsEOD(t):mine(t)&&needsEOD(t))).length;
   n.innerHTML=TABS().map(([k,l])=>`<button data-tab="${k}" class="${VIEW===k?"on":""}">${l}${k==="today"&&pend?`<span class="pill">${pend}</span>`:""}</button>`).join("");
 }
-document.getElementById("tabs").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(b){VIEW=b.dataset.tab;render();window.scrollTo(0,0)}});
+document.getElementById("tabs").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(b){VIEW=b.dataset.tab;render(true);window.scrollTo(0,0)}});
 
 /* ============================ render ============================ */
-function render(){
+/* animate=true plays the view-in transition (used on user-driven tab changes,
+   never on the 30-second background sync so the screen doesn't twitch). */
+function render(animate){
   renderTabs();
   const app=document.getElementById("app");
   if(!ME){app.innerHTML=offlineBanner()+signIn();return}
@@ -323,6 +389,7 @@ function render(){
   if(!w){w=document.createElement("div");w.id="whoBox";w.className="who";document.querySelector(".top-in").insertBefore(w,document.querySelector(".clock"))}
   loadPhotos(); loadAudio();
   w.innerHTML=`<div class="avatar">${esc(me.name[0])}</div><div style="font-size:12px;line-height:1.15">${esc(me.name)}<br><span style="color:#b9c2d6">${esc(me.role)}</span></div><button class="btn ghost sm" data-act="signout" style="margin-left:6px;padding:4px 8px">Switch</button>`;
+  if(animate){app.classList.remove("anim");void app.offsetWidth;app.classList.add("anim")}
 }
 let REPORT="";
 async function probe(path){
@@ -341,7 +408,7 @@ async function selfTest(){
   const paths=["/api/ping","/api/docket?action=diag","/api/docket?action=staff"];
   const results=[];
   for(const p of paths)results.push(await probe(p));
-  REPORT=["Docket server report","console build 1.7.0","page "+location.href,new Date().toString(),""]
+  REPORT=["Docket server report","console build 1.8.0","page "+location.href,new Date().toString(),""]
     .concat(results.map(r=>`${r.path}  ->  HTTP ${r.status}\n${r.body||"(empty body)"}\n`)).join("\n");
   if(!box)return;
   box.innerHTML=`<div class="card pad" style="margin-top:10px">
@@ -828,7 +895,7 @@ function vSetup(){
   <div class="card pad"><div class="kv">
     <div class="k">Connection</div><div>${LINKERR?`<b style="color:var(--crit)">last call failed</b> — ${esc(LINKERR)}`:`<b style="color:var(--ok)">connected</b> · office clock ${fmt(now())}`}</div>
     <div class="k">Board revision</div><div class="mono">${CORE.rev||0}</div>
-    <div class="k">Console build</div><div class="mono">1.7.0 · <a href="/api/docket?action=diag" target="_blank" rel="noopener">server check</a></div>
+    <div class="k">Console build</div><div class="mono">1.8.0 · <a href="/api/docket?action=diag" target="_blank" rel="noopener">server check</a></div>
     <div class="k">On the board</div><div>${CORE.tasks.length} tasks · ${CORE.staff.length} people · ${(CORE.att||[]).length} attendance marks · ${(CORE.notes||[]).length} voice notes</div>
     <div class="k">Signed in as</div><div>${esc(nameOf(ME))} <span class="mono tiny">${esc(ME)}</span> · ${tasksFor(ME).length} task(s) assigned to this name</div>
   </div>
@@ -1272,7 +1339,7 @@ document.addEventListener("click",async e=>{
     case "signout": ME=null;TOKEN="";MEDIA={};clearCreds();VIEW="today";
       try{const bs=await api("bootstrap");CORE=fresh();CORE.staff=bs.staff}catch(e){}
       render(); break;
-    case "tab": VIEW=el.dataset.tab; render(); window.scrollTo(0,0); break;
+    case "tab": VIEW=el.dataset.tab; render(true); window.scrollTo(0,0); break;
     case "close": closeSheet(); break;
     case "new": newTaskSheet(); break;
     case "savetask": await saveTask(); break;
