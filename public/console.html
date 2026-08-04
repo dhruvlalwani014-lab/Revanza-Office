@@ -129,6 +129,8 @@ body.tabs-pill nav.tabs button.on{background:var(--head-accent);color:var(--head
 .tag.st-Completed{background:#e6f2ec;color:var(--ok);border-color:#bfdfd0}
 .tag.st-InProgress{background:#e7eef3;color:var(--steel);border-color:#c6d9e3}
 .tag.st-Blocked{background:#fbe9ea;color:var(--crit);border-color:#f0c9cc}
+.tag.st-Facingissues{background:var(--field-2);color:var(--warn);border-color:var(--line)}
+.tag.st-Stopped{background:var(--field-2);color:var(--crit);border-color:var(--line)}
 .tag.st-NotStarted{background:#f1f2f5}
 .tag.st-Awaitinginput{background:#fbf1e0;color:var(--warn);border-color:#eddcbc}
 .tag.st-Reassigned{background:#efe9f5;color:#5b3f86;border-color:#dbcfe9}
@@ -297,7 +299,7 @@ async function api(action,payload){
   switch(action){
     case "bootstrap": return call("/api/docket?action=staff");
     case "signIn": {
-      const r=await call("/api/docket",{method:"POST",body:JSON.stringify({action:"signIn",who:p.who||ME,pin:p.pin})});
+      const r=await call("/api/docket",{method:"POST",body:JSON.stringify({action:"signIn",phone:p.phone||"",who:p.who||"",pin:p.pin})});
       TOKEN=r.token; return r;
     }
     case "load": return call("/api/docket?action=board");
@@ -312,6 +314,7 @@ async function api(action,payload){
     case "media": return call("/api/docket?action=media&id="+encodeURIComponent(p.id));
     case "sendReminders": return call("/api/docket",{method:"POST",body:JSON.stringify({action:"reminders"})});
     case "archive": return call("/api/docket",{method:"POST",body:JSON.stringify({action:"archive",id:p.id,archived:p.archived})});
+    case "deleteTask": return call("/api/docket",{method:"POST",body:JSON.stringify({action:"deleteTask",id:p.id})});
   }
   throw new Error("Unknown action: "+action);
 }
@@ -325,8 +328,9 @@ async function refresh(){const r=await api("load");CORE=r.data;CORE.rev=r.rev;re
 const ROLES=["Owner","Legal","Documentation","Accounts","Executive","Admin","Engineer"];
 
 const TYPES=["General","Legal case","Field visit","Documentation","Accounts","Engineering","Admin"];
-const STATUSES=["Not started","In progress","Awaiting input","Blocked","Completed"];
+const STATUSES=["Not started","In progress","Facing issues","Stopped","Completed"];
 const CRIT=["Low","Medium","High","Critical"];
+const CATEGORIES=["Legal","Follow up","Others"];
 function fresh(){return{v:2,rev:0,seq:0,staff:[],tasks:[],att:[],notes:[],archived:[],
  settings:{eod:"18:30",officeName:"Office",reminderHour:"09:00",shiftStart:"09:30",dial:"91",contactsV1:true}}}
 
@@ -427,8 +431,6 @@ function themeSheet(){
 (async function boot(){
   applyTheme(themePref());
   tick(); setInterval(tick,1000);
-  try{const bs=await api("bootstrap");CORE.staff=bs.staff}
-  catch(e){LINKERR=e.message; setTimeout(selfTest,50)}
   const saved=readCreds();
   if(saved&&saved.token){ME=saved.id;TOKEN=saved.token;
     try{await refresh()}catch(e){ME=null;TOKEN="";clearCreds()}}
@@ -465,7 +467,7 @@ function toast(msg,kind){ const s=document.getElementById("sheet");
 /* ============================ chrome ============================ */
 const TABS=()=>{
   const t=[["today","Today"],["att","Attendance"],["mine","My tasks"],["all","All tasks"],["voice","Voice notes"],["hear","Hearings"],["photos","Photo log"]];
-  if(isOwner())t.push(["team","Team"],["mail","Reminders"],["audit","Audit"],["archived","Archived"],["setup","Setup"]);
+  if(isOwner())t.push(["team","Team"],["pay","Pay"],["mail","Reminders"],["audit","Audit"],["archived","Archived"],["setup","Setup"]);
   else t.push(["mail","Reminders"]);
   return t;
 };
@@ -484,7 +486,7 @@ function render(animate){
   renderTabs();
   const app=document.getElementById("app");
   if(!ME){app.innerHTML=offlineBanner()+signIn();return}
-  const v={today:vToday,att:vAtt,mine:vMine,all:vAll,voice:vVoice,hear:vHear,photos:vPhotos,team:vTeam,mail:vMail,audit:vAudit,archived:vArchived,setup:vSetup}[VIEW]||vToday;
+  const v={today:vToday,att:vAtt,mine:vMine,all:vAll,voice:vVoice,hear:vHear,photos:vPhotos,team:vTeam,pay:vPay,mail:vMail,audit:vAudit,archived:vArchived,setup:vSetup}[VIEW]||vToday;
   app.innerHTML=offlineBanner()+v();
   const me=byId(ME);
   let w=document.getElementById("whoBox");
@@ -507,10 +509,10 @@ async function probe(path){
 async function selfTest(){
   const box=document.getElementById("selftest");
   if(box)box.innerHTML=`<div class="small muted">Checking the server…</div>`;
-  const paths=["/api/ping","/api/docket?action=diag","/api/docket?action=staff"];
+  const paths=["/api/ping","/api/docket?action=diag"];
   const results=[];
   for(const p of paths)results.push(await probe(p));
-  REPORT=["Docket server report","console build 1.10.0","page "+location.href,new Date().toString(),""]
+  REPORT=["Docket server report","console build 1.11.0","page "+location.href,new Date().toString(),""]
     .concat(results.map(r=>`${r.path}  ->  HTTP ${r.status}\n${r.body||"(empty body)"}\n`)).join("\n");
   if(!box)return;
   box.innerHTML=`<div class="card pad" style="margin-top:10px">
@@ -527,10 +529,16 @@ function offlineBanner(){
   return LINKERR?`<div class="banner crit"><b>The office board didn't answer.</b><br>${esc(LINKERR)}<br>Your last action may not have been saved.<div class="btnrow"><button class="btn sm" data-act="reload">Reload</button><button class="btn ghost sm" data-act="selftest">Run a server check</button></div><div id="selftest"></div></div>`:"";
 }
 function signIn(){
-  return `<div class="sec-head"><h2>Who's working?</h2></div>
-  <p class="small muted">Pick your name, then enter your four-digit PIN. Everything you post is stamped with your name and the office clock.</p>
-  ${(CORE.staff||[]).map(x=>`<div class="docket" data-act="pick" data-id="${x.id}" tabindex="0"><div class="spine ${x.role==="Owner"?"Critical":"Medium"}"></div><div class="body"><div class="no">${esc(x.role.toUpperCase())}${x.note?" · "+esc(x.note):""}</div><h3>${esc(x.name)}</h3></div></div>`).join("")}
-  <p class="footnote">Forgotten your PIN? Sushil can reset it under Setup.</p>`;
+  return `<div class="sec-head"><h2>Sign in</h2></div>
+  <p class="small muted">Enter your mobile number and your four-digit PIN. Everything you post is stamped with your name and the office clock.</p>
+  <div class="card pad" style="max-width:360px">
+    <label>Mobile number</label>
+    <input id="s_phone" type="tel" inputmode="numeric" autocomplete="username" placeholder="10-digit number" style="font-size:19px;letter-spacing:.02em">
+    <label style="margin-top:10px">PIN</label>
+    <input id="s_pin" type="tel" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="0000" style="font-size:24px;letter-spacing:.35em;text-align:center">
+    <div class="btnrow"><button class="btn" data-act="dosignin">Sign in</button></div>
+    <p class="footnote">Your PIN starts as the last four digits of your mobile number. Forgotten it? Sushil can reset it under Setup.</p>
+  </div>`;
 }
 function myPinSheet(force){
   sheet(`<div class="bar"><h2 style="font-size:18px">${force?"Choose your own PIN":"Change my PIN"}</h2>${force?"":`<button class="btn ghost sm" data-act="close">Close</button>`}</div>
@@ -550,30 +558,81 @@ async function saveMyPin(){
   try{const r=await api("setPin",{target:ME,newPin:a});CORE=r.data;CORE.rev=r.rev;closeSheet();render();toast("PIN changed","ok")}
   catch(e){toast(e.message)}
 }
-function pinSheet(id){
-  const x=(CORE.staff||[]).find(y=>y.id===id)||{};
-  sheet(`<div class="bar"><h2 style="font-size:19px">${esc(x.name||"Sign in")}</h2><button class="btn ghost sm" data-act="close">Close</button></div>
-  <div class="card pad">
-    <label>Your four-digit PIN</label>
-    <input id="p_pin" type="tel" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="0000" style="font-size:26px;letter-spacing:.35em;text-align:center">
-    <div class="btnrow"><button class="btn" data-act="dosignin" data-id="${id}">Sign in</button><button class="btn ghost" data-act="close">Cancel</button></div>
-    <p class="footnote">Your PIN starts as the last four digits of your mobile number.</p>
-  </div>`);
-  setTimeout(()=>{const e=document.getElementById("p_pin");if(e)e.focus()},150);
-}
-async function doSignIn(id){
-  const pin=val("p_pin");
+async function doSignIn(){
+  const phone=(val("s_phone")||"").replace(/\D/g,"");
+  const pin=val("s_pin");
+  if(phone.length<10)return toast("Enter your full 10-digit mobile number.");
   if(!/^[0-9]{4}$/.test(pin))return toast("Four digits, please.");
   const wasMe=ME, wasTok=TOKEN;
   try{
-    const r=await api("signIn",{who:id,pin});
-    ME=id; TOKEN=r.token;
+    const r=await api("signIn",{phone,pin});
+    ME=r.user.id; TOKEN=r.token;
     await refresh(); saveCreds(); closeSheet(); VIEW="today"; render();
-    if(r.user&&r.user.forcePin)myPinSheet(true); else toast("Welcome, "+nameOf(id),"ok");
+    if(r.user&&r.user.forcePin)myPinSheet(true); else toast("Welcome, "+nameOf(ME),"ok");
   }catch(e){ME=wasMe;TOKEN=wasTok;toast(e.message)}
 }
 
 /* -------- Today -------- */
+/* -------- owner dashboard (the office today) -------- */
+function todayStats(){
+  const d=today();
+  let updates=0, completed=0, photos=0, voices=0;
+  const byWho={};
+  CORE.tasks.forEach(t=>(t.log||[]).forEach(l=>{
+    if(dstr(l.at)!==d)return;
+    updates++; byWho[l.by]=(byWho[l.by]||0)+1;
+    if(l.status==="Completed")completed++;
+    if(l.photo)photos++;
+    if(l.audio)voices++;
+  }));
+  const notes=(CORE.notes||[]).filter(n=>dstr(n.at)===d).length;
+  const marks=(CORE.att||[]).filter(a=>dstr(a.at)===d);
+  const inNow=CORE.staff.filter(x=>attSummary(x.id,d).inside).length;
+  const marked=CORE.staff.filter(x=>attSummary(x.id,d).inAt).length;
+  const late=CORE.staff.filter(x=>lateBy(x.id)).length;
+  const unverified=marks.filter(a=>a.unverified).length;
+  const posted=Object.keys(byWho).length;
+  return {updates,byWho,posted,completed,photos,voices,notes,marked,inNow,late,unverified,
+    notMarked:CORE.staff.length-marked, newTasks:CORE.tasks.filter(t=>dstr(t.createdAt)===d).length};
+}
+function ownerBoard(){
+  const d=today(), st=todayStats();
+  let h=`<div class="sec-head"><h2 style="font-size:19px">The office today</h2><span class="eyebrow">${new Date().toLocaleDateString(undefined,{day:"2-digit",month:"short"})}</span></div>
+  <div class="card"><div class="stat">
+    <div><b>${st.updates}</b><span>Updates posted</span></div>
+    <div><b>${st.posted} of ${CORE.staff.length}</b><span>People who posted</span></div>
+    <div><b style="color:${st.completed?"var(--ok)":"inherit"}">${st.completed}</b><span>Tasks completed</span></div>
+    <div><b>${st.newTasks}</b><span>Tasks assigned</span></div>
+  </div></div>
+  <div class="card"><div class="stat">
+    <div><b>${st.marked} of ${CORE.staff.length}</b><span>Attendance marked</span></div>
+    <div><b>${st.inNow}</b><span>In office now</span></div>
+    <div><b style="color:${st.late?"var(--warn)":"inherit"}">${st.late}</b><span>Late in</span></div>
+    <div><b style="color:${st.notMarked?"var(--seal)":"var(--ok)"}">${st.notMarked}</b><span>Not marked</span></div>
+    ${st.unverified?`<div><b style="color:var(--crit)">${st.unverified}</b><span>Unverified</span></div>`:""}
+  </div></div>`;
+  if(st.photos||st.voices||st.notes)
+    h+=`<p class="small muted" style="margin:-4px 0 0">Filed today: ${st.photos} site photo${st.photos===1?"":"s"} · ${st.voices} voice note${st.voices===1?"":"s"} · ${st.notes} note${st.notes===1?"":"s"}.</p>`;
+  const rows=CORE.staff.map(x=>{
+    const q=attSummary(x.id,d), a=tasksFor(x.id);
+    return {x,q,late:lateBy(x.id),posts:st.byWho[x.id]||0,
+      open:a.filter(open_).length,due:a.filter(needsEOD).length,over:a.filter(overdue).length};
+  }).sort((p,r)=>(r.due-p.due)||(r.posts-p.posts));
+  h+=`<div class="sec-head"><h2 style="font-size:18px">Person by person</h2><span class="eyebrow">tap a name</span></div>
+  <div class="card"><div class="pad" style="overflow-x:auto"><table>
+    <tr><th>Person</th><th>Updates<br>today</th><th>In</th><th>Out</th><th>Hours</th><th>Open</th><th>Update<br>due</th></tr>
+    ${rows.map(r=>`<tr>
+      <td><a href="#" data-act="staff" data-id="${r.x.id}"><b>${esc(r.x.name)}</b></a><br><span class="tiny muted">${esc(r.x.role)}</span></td>
+      <td><b style="color:${r.posts?"var(--ok)":"var(--ink-2)"}">${r.posts}</b></td>
+      <td>${r.q.inAt?tstr(r.q.inAt)+(r.late?`<br><span class="tiny" style="color:var(--warn)">${r.late}m late</span>`:""):`<span style="color:var(--seal)">—</span>`}</td>
+      <td>${r.q.outAt?tstr(r.q.outAt):r.q.inside?`<span class="tiny muted">in</span>`:"—"}</td>
+      <td class="mono tiny">${r.q.hours||"—"}</td>
+      <td>${r.open}${r.over?`<br><span class="tiny" style="color:var(--crit)">${r.over} overdue</span>`:""}</td>
+      <td><b style="color:${r.due?"var(--seal)":"var(--ok)"}">${r.due}</b></td>
+    </tr>`).join("")}
+  </table></div></div>`;
+  return h;
+}
 function vToday(){
   const scope=CORE.tasks.filter(visible);
   const my=isOwner()?scope:scope.filter(mine);
@@ -595,6 +654,7 @@ function vToday(){
     <div><div class="eyebrow">My attendance</div><div class="small">${su.inAt?`In ${tstr(su.inAt)}${su.outAt?` · Out ${tstr(su.outAt)}`:""}${su.hours?` · ${su.hours} h`:""}`:"Not marked today"}</div></div>
     <div style="margin-left:auto" class="btnrow">${su.last!=="in"?`<button class="btn sm" data-act="markin">Mark entry</button>`:`<button class="btn sm seal" data-act="markout">Mark exit</button>`}</div></div>`;
   if((byId(ME)||{}).forcePin)h+=`<div class="banner warn"><b>Your PIN was reset by Sushil.</b> Choose one only you know.<div class="btnrow"><button class="btn sm" data-act="mypin">Set my PIN</button></div></div>`;
+  if(isOwner())h+=ownerBoard();
   h+=`<div class="btnrow"><button class="btn" data-act="new">Assign a task</button>${isOwner()?`<button class="btn ghost" data-act="tab" data-tab="mail">Build reminder emails</button>`:""}</div>`;
   const grp=(title,arr,note)=>arr.length?`<div class="sec-head"><h2>${title}</h2><span class="eyebrow">${arr.length}</span></div>${note?`<p class="small muted" style="margin:0">${note}</p>`:""}${arr.map(card).join("")}`:"";
   h+=grp("Update due today",pend,"Post status before the cut-off.");
@@ -622,7 +682,7 @@ function card(t){
   return `<div class="docket" data-act="open" data-id="${t.id}" tabindex="0">
     <div class="spine ${esc(t.priority)}"></div>
     <div class="body">
-      <div class="no">${esc(t.no)}${t.property?" · "+esc(t.property):""} · ${esc(nameOf(t.assignee))}</div>
+      <div class="no">${esc(t.no)}${t.category?" · "+esc(t.category.toUpperCase()):""}${t.property?" · "+esc(t.property):""} · ${esc(nameOf(t.assignee))}</div>
       <h3>${esc(t.title)}</h3>
       <div class="row"><span class="tag st-${esc(st)}">${esc(t.status)}</span>${chips.join("")}</div>
       <div class="tiny muted" style="margin-top:5px">${l?`${esc(nameOf(l.by))} · ${fmt(l.at)}${l.comment?" · "+esc(l.comment.slice(0,70)):""}`:"No update yet · assigned "+fmt(t.createdAt)}</div>
@@ -889,6 +949,118 @@ function vPhotos(){
   </div>`).join("");
 }
 
+/* -------- pay and hours -------- */
+const PAY_DEFAULTS={salary:0,dailyHours:9,inTime:"09:30",outTime:"18:30",weekOff:"Sunday",otRate:1.5,daysPerMonth:26,graceMin:15,deductShort:false};
+const WEEKDAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","None"];
+function payCfg(uid){
+  const all=(CORE.settings&&CORE.settings.pay)||{};
+  return Object.assign({},PAY_DEFAULTS,(CORE.settings&&CORE.settings.payDefaults)||{},all[uid]||{});
+}
+function monthDays(ym){
+  const [y,m]=ym.split("-").map(Number);
+  const last=new Date(y,m,0).getDate(), out=[];
+  for(let d=1;d<=last;d++)out.push(`${ym}-${String(d).padStart(2,"0")}`);
+  return out;
+}
+function hoursOn(uid,day){
+  const a=attFor(uid,day); let ms=0,open=null;
+  a.forEach(e=>{if(e.kind==="in"){if(!open)open=new Date(e.at)}else if(open){ms+=new Date(e.at)-open;open=null}});
+  return {hours:ms/36e5, first:(a.find(e=>e.kind==="in")||{}).at, last:(a.slice().reverse().find(e=>e.kind==="out")||{}).at, marks:a.length};
+}
+/* Everything shown to the owner, with each part visible rather than one figure. */
+function payRun(uid,ym){
+  const c=payCfg(uid), days=monthDays(ym);
+  let worked=0, present=0, ot=0, short=0, late=0;
+  const rows=[];
+  days.forEach(day=>{
+    const h=hoursOn(uid,day);
+    if(!h.first)return;
+    present++; worked+=h.hours;
+    const over=Math.max(0,h.hours-c.dailyHours), under=Math.max(0,c.dailyHours-h.hours);
+    ot+=over; short+=under;
+    const inMin=new Date(h.first).getHours()*60+new Date(h.first).getMinutes();
+    const [sh,sm]=(c.inTime||"09:30").split(":").map(Number);
+    const isLate=inMin>(sh*60+sm+Number(c.graceMin||0));
+    if(isLate)late++;
+    rows.push({day,hours:h.hours,in:h.first,out:h.last,over,under,late:isLate});
+  });
+  const salary=Number(c.salary)||0;
+  const dayRate=c.daysPerMonth?salary/c.daysPerMonth:0;
+  const hourRate=c.dailyHours?dayRate/c.dailyHours:0;
+  const absent=Math.max(0,(Number(c.daysPerMonth)||0)-present);
+  const otPay=ot*hourRate*(Number(c.otRate)||1);
+  const absentCut=absent*dayRate;
+  const shortCut=c.deductShort?short*hourRate:0;
+  return {cfg:c,rows,present,absent,worked,ot,short,late,salary,dayRate,hourRate,otPay,absentCut,shortCut,
+    net:Math.max(0,salary-absentCut-shortCut+otPay)};
+}
+const money=n=>"₹"+Math.round(Number(n)||0).toLocaleString("en-IN");
+const hrs=n=>(Math.round((Number(n)||0)*10)/10)+"h";
+let PAYMONTH="";
+function vPay(){
+  const ym=PAYMONTH||today().slice(0,7);
+  const rows=CORE.staff.map(s=>({s,r:payRun(s.id,ym)}));
+  const totals=rows.reduce((a,b)=>({net:a.net+b.r.net,ot:a.ot+b.r.ot,worked:a.worked+b.r.worked}),{net:0,ot:0,worked:0});
+  let h=`<div class="sec-head"><span class="eyebrow">from the attendance marks</span><h2>Pay</h2></div>
+  <div class="card pad">
+    <label>Month</label><input id="p_month" type="month" value="${ym}" max="${today().slice(0,7)}">
+    <div class="btnrow"><button class="btn sm" data-act="paymonth">Show</button><button class="btn ghost sm" data-act="paycsv">Export CSV</button></div>
+    <p class="footnote">Worked hours come from the entry and exit marks. Nothing here is paid automatically — it is a statement for you to check before you pay.</p>
+  </div>
+  <div class="card"><div class="stat">
+    <div><b>${money(totals.net)}</b><span>Total payable</span></div>
+    <div><b>${hrs(totals.worked)}</b><span>Hours worked</span></div>
+    <div><b>${hrs(totals.ot)}</b><span>Overtime</span></div>
+  </div></div>
+  <div class="card"><div class="pad" style="overflow-x:auto"><table>
+    <tr><th>Person</th><th>Present</th><th>Absent</th><th>Hours</th><th>OT</th><th>Late</th><th>Base</th><th>OT pay</th><th>Absent cut</th><th>Payable</th></tr>
+    ${rows.map(({s,r})=>`<tr>
+      <td><a href="#" data-act="payone" data-id="${s.id}"><b>${esc(s.name)}</b></a><br><span class="tiny muted">${esc(s.role)}${r.salary?"":" · no salary set"}</span></td>
+      <td>${r.present}</td><td>${r.absent}</td><td class="mono">${hrs(r.worked)}</td>
+      <td class="mono">${hrs(r.ot)}</td><td>${r.late||""}</td>
+      <td class="mono">${money(r.salary)}</td><td class="mono" style="color:var(--ok)">${r.otPay?"+"+money(r.otPay):"—"}</td>
+      <td class="mono" style="color:${r.absentCut?"var(--crit)":"inherit"}">${r.absentCut?"−"+money(r.absentCut):"—"}</td>
+      <td class="mono"><b>${money(r.net)}</b></td></tr>`).join("")}
+  </table></div></div>
+  <p class="footnote">Set salary and hours for each person under Setup, Pay &amp; hours. Anyone without a salary shows zero.</p>`;
+  return h;
+}
+function payOne(uid){
+  const ym=PAYMONTH||today().slice(0,7), r=payRun(uid,ym), c=r.cfg;
+  sheet(`<div class="bar"><h2 style="font-size:19px">${esc(nameOf(uid))}</h2><button class="btn ghost sm" data-act="close">Close</button></div>
+  <div class="card pad">
+    <div class="eyebrow">${esc(ym)}</div>
+    <div class="kv" style="margin-top:8px">
+      <div class="k">Salary</div><div>${money(r.salary)} for ${c.daysPerMonth} days</div>
+      <div class="k">Day / hour rate</div><div>${money(r.dayRate)} · ${money(r.hourRate)} per hour</div>
+      <div class="k">Shift</div><div>${esc(c.inTime)} to ${esc(c.outTime)} · ${c.dailyHours}h · off ${esc(c.weekOff)}</div>
+      <div class="k">Present</div><div>${r.present} day(s), ${hrs(r.worked)} worked</div>
+      <div class="k">Overtime</div><div>${hrs(r.ot)} at ${c.otRate}× = <b style="color:var(--ok)">${money(r.otPay)}</b></div>
+      <div class="k">Short hours</div><div>${hrs(r.short)}${c.deductShort?` = −${money(r.shortCut)}`:" (not deducted)"}</div>
+      <div class="k">Absent</div><div>${r.absent} day(s) = ${r.absentCut?"−"+money(r.absentCut):"—"}</div>
+      <div class="k">Late marks</div><div>${r.late}</div>
+      <div class="k">Payable</div><div style="font-size:19px"><b>${money(r.net)}</b></div>
+    </div>
+  </div>
+  <div class="sec-head"><h2 style="font-size:17px">Day by day</h2></div>
+  <div class="card"><div class="pad" style="overflow-x:auto"><table>
+    <tr><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th>OT</th></tr>
+    ${r.rows.map(x=>`<tr><td class="mono">${fmtd(x.day)}</td>
+      <td class="mono">${x.in?tstr(x.in):"—"}${x.late?` <span class="tiny" style="color:var(--seal)">late</span>`:""}</td>
+      <td class="mono">${x.out?tstr(x.out):"—"}</td><td class="mono">${hrs(x.hours)}</td>
+      <td class="mono">${x.over?hrs(x.over):""}</td></tr>`).join("")||`<tr><td colspan="5" class="muted">No attendance marked this month.</td></tr>`}
+  </table></div></div>`);
+}
+function payCSV(){
+  const ym=PAYMONTH||today().slice(0,7);
+  const q2=x=>'"'+String(x==null?"":x).replace(/"/g,'""')+'"';
+  const head=["Month","Person","Role","Salary","Days paid for","Present","Absent","Hours worked","Overtime hours","OT rate","OT pay","Absent deduction","Short hours","Short deduction","Late marks","Payable"];
+  const rows=CORE.staff.map(s=>{const r=payRun(s.id,ym);
+    return [ym,s.name,s.role,r.salary,r.cfg.daysPerMonth,r.present,r.absent,r.worked.toFixed(2),r.ot.toFixed(2),
+      r.cfg.otRate,Math.round(r.otPay),Math.round(r.absentCut),r.short.toFixed(2),Math.round(r.shortCut),r.late,Math.round(r.net)].map(q2).join(",")});
+  download("pay-"+ym+".csv",head.map(q2).join(",")+"\n"+rows.join("\n"),"text/csv");
+}
+
 /* -------- team -------- */
 function vTeam(){
   let h=`<div class="sec-head"><h2>Team</h2><span class="eyebrow">load &amp; compliance</span></div>
@@ -986,6 +1158,35 @@ function vSetup(){
     <div><label>&nbsp;</label><button class="btn ghost sm" data-act="delstaff" data-id="${s.id}">Remove person</button></div>
   </div></div>`).join("")}
   <div class="btnrow"><button class="btn sm" data-act="savestaff">Save team</button><button class="btn ghost sm" data-act="addstaff">Add person</button></div>
+  <div class="sec-head"><h2 style="font-size:18px">Case lists</h2></div>
+  <div class="card pad">
+    <p class="small muted" style="margin-top:0">These fill themselves: whatever anyone types under “Other…” in a case joins the list. Edit them here if something was entered wrongly — one per line.</p>
+    ${[["courts","Courts"],["judges","Judges"],["counsels","Counsel"],["sections","Sections"],["statuses","Status of matter"],["actions","Next course of action"]]
+      .map(([k,label])=>`<label>${label}</label><textarea id="lst_${k}" style="min-height:70px;font-family:var(--mono);font-size:13px">${esc((caseOpts()[k]||[]).join("\n"))}</textarea>`).join("")}
+    <div class="btnrow"><button class="btn sm" data-act="savelists">Save lists</button></div>
+  </div>
+  <div class="sec-head"><h2 style="font-size:18px">Pay &amp; hours</h2></div>
+  <div class="card pad">
+    <div class="grid2">
+      <div><label>Overtime rate</label><input id="pd_ot" type="number" step="0.1" min="1" value="${esc(String(payCfg("").otRate))}"></div>
+      <div><label>Paid days in a month</label><input id="pd_days" type="number" min="1" max="31" value="${esc(String(payCfg("").daysPerMonth))}"></div>
+      <div><label>Late grace (minutes)</label><input id="pd_grace" type="number" min="0" max="120" value="${esc(String(payCfg("").graceMin))}"></div>
+      <div><label>Short hours</label><select id="pd_short"><option value="no" ${payCfg("").deductShort?"":"selected"}>Do not deduct</option><option value="yes" ${payCfg("").deductShort?"selected":""}>Deduct from pay</option></select></div>
+    </div>
+    <p class="footnote">These apply to everyone unless a person has their own figures below.</p>
+  </div>
+  ${CORE.staff.map(s=>{const c=payCfg(s.id);return `<div class="card pad">
+    <div class="eyebrow">${esc(s.name)} · ${esc(s.role)}</div>
+    <div class="grid2">
+      <div><label>Monthly salary</label><input data-pay="${s.id}" data-f="salary" type="number" min="0" value="${esc(String(c.salary||""))}" placeholder="0"></div>
+      <div><label>Hours in a day</label><input data-pay="${s.id}" data-f="dailyHours" type="number" step="0.5" min="1" max="16" value="${esc(String(c.dailyHours))}"></div>
+      <div><label>In time</label><input data-pay="${s.id}" data-f="inTime" type="time" value="${esc(c.inTime)}"></div>
+      <div><label>Out time</label><input data-pay="${s.id}" data-f="outTime" type="time" value="${esc(c.outTime)}"></div>
+      <div><label>Weekly off</label><select data-pay="${s.id}" data-f="weekOff">${WEEKDAYS.map(d=>`<option ${c.weekOff===d?"selected":""}>${d}</option>`).join("")}</select></div>
+      <div><label>Overtime rate</label><input data-pay="${s.id}" data-f="otRate" type="number" step="0.1" min="1" value="${esc(String(c.otRate))}"></div>
+    </div>
+  </div>`}).join("")}
+  <div class="btnrow"><button class="btn sm" data-act="savepay">Save pay &amp; hours</button></div>
   <div class="sec-head"><h2 style="font-size:18px">PINs</h2></div>
   <div class="card pad">
     <div class="grid2">
@@ -1002,7 +1203,7 @@ function vSetup(){
   <div class="card pad"><div class="kv">
     <div class="k">Connection</div><div>${LINKERR?`<b style="color:var(--crit)">last call failed</b> — ${esc(LINKERR)}`:`<b style="color:var(--ok)">connected</b> · office clock ${fmt(now())}`}</div>
     <div class="k">Board revision</div><div class="mono">${CORE.rev||0}</div>
-    <div class="k">Console build</div><div class="mono">1.10.0 · <a href="/api/docket?action=diag" target="_blank" rel="noopener">server check</a></div>
+    <div class="k">Console build</div><div class="mono">1.11.0 · <a href="/api/docket?action=diag" target="_blank" rel="noopener">server check</a></div>
     <div class="k">On the board</div><div>${CORE.tasks.length} tasks · ${CORE.staff.length} people · ${(CORE.att||[]).length} attendance marks · ${(CORE.notes||[]).length} voice notes</div>
     <div class="k">Signed in as</div><div>${esc(nameOf(ME))} <span class="mono tiny">${esc(ME)}</span> · ${tasksFor(ME).length} task(s) assigned to this name</div>
   </div>
@@ -1025,6 +1226,9 @@ document.getElementById("sheet").addEventListener("click",e=>{if(e.target.classL
 function newTaskSheet(){
   sheet(`<div class="bar"><h2>Assign a task</h2><button class="btn ghost sm" data-act="close">Close</button></div>
   <div class="card pad">
+    <label>Category <span class="req">*</span></label>
+    <select id="n_cat"><option value="">Choose one</option>${CATEGORIES.map(c=>`<option>${esc(c)}</option>`).join("")}</select>
+    <p id="n_catnote" class="footnote" style="margin-top:4px">Legal matters carry no completion date — the court sets those.</p>
     <label>Property / company <span class="req">*</span></label>
     <select id="n_prop"><option value="">Choose one</option>${propOptions()}<option value="__none">Not tied to any property</option></select>
     <input id="n_propx" class="hide" placeholder="Which one? Type the name" style="margin-top:6px">
@@ -1032,7 +1236,7 @@ function newTaskSheet(){
     <label>Detail / instruction</label><textarea id="n_desc" placeholder="Context, documents to refer, expected outcome"></textarea>
     <div class="grid2">
       <div><label>Assign to <span class="req">*</span></label><select id="n_who">${CORE.staff.filter(s=>s.id!==ME).map(s=>`<option value="${s.id}">${esc(s.name)} — ${esc(s.role)}</option>`).join("")}</select></div>
-      <div><label>Deadline date</label><input id="n_due" type="date" min="${today()}"></div>
+      <div><label id="n_duelbl">Target completion date</label><input id="n_due" type="date" min="${today()}"></div>
     </div>
     <label>Stages <span class="muted" style="font-weight:400">optional — for work that runs in steps</span></label>
     <div id="n_stages"></div>
@@ -1048,6 +1252,14 @@ function newTaskSheet(){
     const x=document.getElementById("n_propx");
     x.classList.toggle("hide",sel.value!=="Others");
     if(sel.value==="Others")x.focus();
+  });
+  const cat=document.getElementById("n_cat");
+  cat.addEventListener("change",()=>{
+    const legal=cat.value==="Legal", due=document.getElementById("n_due");
+    document.getElementById("n_duelbl").innerHTML=legal
+      ? 'Target completion date <span class="muted" style="font-weight:400">not needed for legal</span>'
+      : "Target completion date";
+    due.disabled=legal; if(legal)due.value="";
   });
 }
 function stageRow(box,name,days){
@@ -1076,8 +1288,10 @@ async function saveTask(){
   const who=val("n_who");
   if(!who)return toast("There's nobody else to assign this to.");
   if(who===ME)return toast("You can't assign a task to yourself.");
-  let due=val("n_due");
-  if(due&&due<today())return toast("Deadline can't be in the past.");
+  const cat=val("n_cat");
+  if(!cat)return toast("Which category is this task?");
+  let due=cat==="Legal"?"":val("n_due");
+  if(due&&due<today())return toast("The target completion date can't be in the past.");
   let prop=val("n_prop");
   if(!prop)return toast("Which property or company is this for?");
   if(prop==="__none")prop="";
@@ -1087,7 +1301,7 @@ async function saveTask(){
   const stg=readStages(document.getElementById("n_stages"),today());
   if(stg.length&&!due)due=stg[stg.length-1].due;
   const t={
-    id:"t"+Date.now().toString(36),no:"",title,desc:val("n_desc"),type:"General",
+    id:"t"+Date.now().toString(36),no:"",title,desc:val("n_desc"),type:"General",category:cat,
     assignee:who,assigner:ME,priority:"Medium",deadline:due||"",
     property:prop,fields:[],links:[],stages:stg,status:"Not started",followUp:"",createdAt:iso(now()),history:[],log:[],case:null
   };
@@ -1102,7 +1316,7 @@ function taskSheet(id){
   const canAct=isOwner()||t.assignee===ME||t.assigner===ME;
   let h=`<div class="bar"><h2 style="font-size:18px">${esc(t.no)}</h2><button class="btn ghost sm" data-act="close">Close</button></div>
   <div class="card"><div class="pad">
-    <div class="row"><span class="tag st-${esc(t.status.replace(/\s/g,""))}">${esc(t.status)}</span><span class="tag">${esc(t.priority)}</span><span class="tag">${esc(t.type)}</span>${needsEOD(t)?`<span class="tag due">update due</span>`:""}</div>
+    <div class="row"><span class="tag st-${esc(t.status.replace(/\s/g,""))}">${esc(t.status)}</span>${t.category?`<span class="tag">${esc(t.category)}</span>`:""}<span class="tag">${esc(t.priority)}</span><span class="tag">${esc(t.type)}</span>${needsEOD(t)?`<span class="tag due">update due</span>`:""}</div>
     <h2 style="font-size:19px;margin:8px 0 2px">${esc(t.title)}</h2>
     ${t.desc?`<p class="small" style="margin:4px 0">${nl(t.desc)}</p>`:""}
     <div class="kv">
@@ -1145,8 +1359,8 @@ function taskSheet(id){
   }
   h+=`</div></div>`;
   if(canAct)h+=`<div class="btnrow"><button class="btn seal" data-act="update" data-id="${t.id}">Post update</button>
-    <button class="btn ghost" data-act="handover" data-id="${t.id}">Hand over</button>
     ${isOwner()||t.assigner===ME?`<button class="btn ghost" data-act="editfields" data-id="${t.id}">Edit task</button>`:""}
+    ${isOwner()||t.assigner===ME?`<button class="btn ghost" data-act="deltask" data-id="${t.id}" style="color:var(--crit);border-color:var(--crit)">Delete</button>`:""}
     ${isOwner()?`<button class="btn ghost" data-act="archive" data-id="${t.id}" style="margin-left:auto;color:var(--seal);border-color:var(--seal)">Archive</button>`:""}</div>`;
   h+=`<div class="sec-head"><h2 style="font-size:17px">Update history</h2><span class="eyebrow">${t.log.length}</span></div><div class="card pad">${logHtml(t)}</div>`;
   sheet(h);
@@ -1238,18 +1452,11 @@ function updateSheet(id){
     ${light?`<div class="banner ok" style="margin:10px 0">Deadline ${fmtd(t.deadline)} is ${daysTo(t.deadline)} day(s) away. “In progress” with a comment is enough for now.</div>`:""}
     <label>Status <span class="req">*</span></label>
     <select id="u_status">${STATUSES.filter(x=>x!=="Not started").map(x=>`<option ${t.status===x?"selected":""}>${x}</option>`).join("")}</select>
-    <label>Comment <span class="req">*</span></label><textarea id="u_comment" placeholder="What moved today"></textarea>
+    <label>Comment <span class="req" id="u_creq">*</span></label><textarea id="u_comment" placeholder="What moved today"></textarea>
     <label>Posted at</label><input readonly value="${fmt(now())} — live stamp, not editable">
-    <hr><div class="eyebrow">Fill only what this task needs</div>
-    <div class="grid2">
-      <div><label>Completion time</label><input id="u_end" type="time"><div class="footnote">Today only. Future times are refused.</div></div>
-      <div><label>Next follow-up date</label><input id="u_fu" type="date" min="${today()}" value="${esc(t.followUp||"")}"></div>
-    </div>
-    <label>Delay &amp; reason</label><textarea id="u_delay" placeholder="e.g. 2 days — clerk did not release certified copy"></textarea>
-    <label>Issues faced</label><textarea id="u_issues"></textarea>
-    <label>Interconnected task issues</label><textarea id="u_link" placeholder="Which other task or person is holding this up, and how"></textarea>
-    <label>Next process</label><textarea id="u_next" placeholder="What happens after this"></textarea>
-    <label>Level of criticality</label><select id="u_pri">${CRIT.map(x=>`<option ${t.priority===x?"selected":""}>${x}</option>`).join("")}</select>
+    <label>Next follow-up date <span class="muted" style="font-weight:400">optional</span></label>
+    <input id="u_fu" type="date" min="${today()}" value="${esc(t.followUp||"")}">
+    <p class="footnote">A comment is optional only when the status is Completed. If the follow-up is after the target completion date, say why in the comment.</p>
     <label>Add to this update</label>
     <div class="checks" id="u_toggles">
       <label class="chk ${hasCase?"on":""}"><input type="checkbox" data-blk="blk_case" ${hasCase?"checked":""}>Court case record</label>
@@ -1264,9 +1471,9 @@ function updateSheet(id){
         <div>${selOther("c_section","Applicable sections",co.sections,k.section||"")}</div>
       </div>
       <label>Last / current order passed</label><textarea id="c_order">${esc(k.lastOrder||"")}</textarea>
-      <label>Attach order file(s) <span class="muted" style="font-weight:400">PDF or photo — optional</span></label>
+      <label>Attach order file(s) <span class="muted" style="font-weight:400">PDF, photo or document — optional</span></label>
       ${(k.orderFiles&&k.orderFiles.length)?`<div class="small" style="margin:2px 0 6px">On file: ${k.orderFiles.map(f=>`<a href="#" data-act="openfile" data-id="${esc(f.id)}">${esc(f.name||"file")}</a>`).join(" · ")} <span class="tiny muted">(kept; new files add to these)</span></div>`:""}
-      <input id="c_orderfiles" type="file" accept="image/*,application/pdf" multiple>
+      <input id="c_orderfiles" type="file" accept="image/*,application/pdf,.doc,.docx,.txt,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" multiple>
       ${selOther("c_current","Current status of matter",co.statuses,k.current||"")}
       ${selOther("c_next","Next course of action",co.actions,k.nextAction||"")}
       <div class="grid2">
@@ -1297,18 +1504,20 @@ function updateSheet(id){
       if(inp){const other=s.value==="__other__";inp.classList.toggle("hide",!other);if(other)inp.focus();else inp.value=""}
     }
   });
+  // Comment is optional only on Completed — unless the follow-up is past the target date.
+  const st=document.getElementById("u_status"), creq=document.getElementById("u_creq"), fud=document.getElementById("u_fu");
+  const syncReq=()=>{ const late=fud.value&&t.deadline&&fud.value>t.deadline;
+    creq.style.display=(st.value==="Completed"&&!late)?"none":""; };
+  st.addEventListener("change",syncReq); fud.addEventListener("change",syncReq); syncReq();
 }
 
-/* -------- handover -------- */
-function handoverSheet(id){
-  const t=CORE.tasks.find(x=>x.id===id);
-  sheet(`<div class="bar"><h2 style="font-size:18px">Hand over</h2><button class="btn ghost sm" data-act="close">Close</button></div>
-  <div class="card pad"><div class="no mono tiny">${esc(t.no)} · ${esc(t.title)}</div>
-  <label>Hand to <span class="req">*</span></label><select id="h_who">${CORE.staff.filter(s=>s.id!==t.assignee&&s.id!==t.assigner).map(s=>`<option value="${s.id}">${esc(s.name)} — ${esc(s.role)}</option>`).join("")}</select>
-  <label>Handover note <span class="req">*</span></label><textarea id="h_note" placeholder="Where it stands, what the next person must do first"></textarea>
-  <label>New follow-up date</label><input id="h_fu" type="date" min="${today()}" value="${esc(t.followUp||"")}">
-  <div class="btnrow"><button class="btn" data-act="savehandover" data-id="${t.id}">Hand over</button><button class="btn ghost" data-act="close">Cancel</button></div>
-  <p class="footnote">Both names stay on the docket. The trail keeps the full chain.</p></div>`);
+/* -------- delete a task (assignor or owner) -------- */
+async function deleteTask(id){
+  const t=CORE.tasks.find(x=>x.id===id); if(!t)return;
+  if(!(isOwner()||t.assigner===ME))return toast("Only the owner or the person who assigned it can delete a task.");
+  if(!confirm(`Delete ${t.no} “${t.title}”?\n\nThe task and every update posted against it are removed for good. This cannot be undone. To keep it on record instead, use Archive.`))return;
+  try{const r=await api("deleteTask",{id});CORE=r.data;CORE.rev=r.rev;closeSheet();render();toast("Task deleted","ok")}
+  catch(e){toast(e.message)}
 }
 
 /* -------- edit the task (assignor or owner) -------- */
@@ -1491,12 +1700,10 @@ document.addEventListener("click",async e=>{
   const a=el.dataset.act, id=el.dataset.id;
   e.preventDefault();
   switch(a){
-    case "pick": pinSheet(id); break;
-    case "dosignin": await doSignIn(id); break;
+    case "dosignin": await doSignIn(); break;
     case "savemypin": await saveMyPin(); break;
     case "signout": ME=null;TOKEN="";MEDIA={};clearCreds();VIEW="today";
-      try{const bs=await api("bootstrap");CORE=fresh();CORE.staff=bs.staff}catch(e){}
-      render(); break;
+      CORE=fresh(); render(); break;
     case "tab": VIEW=el.dataset.tab; render(true); window.scrollTo(0,0); break;
     case "close": closeSheet(); break;
     case "new": newTaskSheet(); break;
@@ -1504,8 +1711,7 @@ document.addEventListener("click",async e=>{
     case "open": e.preventDefault(); taskSheet(id); break;
     case "update": updateSheet(id); break;
     case "saveupdate": await saveUpdate(id); break;
-    case "handover": handoverSheet(id); break;
-    case "savehandover": await saveHandover(id); break;
+    case "deltask": await deleteTask(id); break;
     case "editfields": fieldsSheet(id); break;
     case "savefields": await saveFields(id); break;
     case "openfile":{const w=window.open("","_blank");let r;
@@ -1582,6 +1788,27 @@ document.addEventListener("click",async e=>{
     case "sendnow": try{const r=await api("sendReminders");toast(r.sent?("Reminder sent to "+r.sent+" people"):"Nobody had anything pending","ok")}catch(e){toast(e.message)} break;
     case "attcsv": attCSV(); break;
     case "staff": staffSheet(id); break;
+    case "paymonth": PAYMONTH=val("p_month")||PAYMONTH; render(); break;
+    case "payone": payOne(id); break;
+    case "paycsv": payCSV(); break;
+    case "savelists": {
+      const lists={};
+      ["courts","judges","counsels","sections","statuses","actions"].forEach(k=>{
+        lists[k]=(document.getElementById("lst_"+k).value||"").split("\n").map(x=>x.trim()).filter(Boolean);
+      });
+      await mutate(c=>{c.settings.caseOptions=Object.assign({},c.settings.caseOptions||{},lists)}); toast("Lists saved","ok");
+    } break;
+    case "savepay": {
+      const per={};
+      document.querySelectorAll("[data-pay]").forEach(i=>{
+        const id2=i.dataset.pay; per[id2]=per[id2]||{};
+        per[id2][i.dataset.f]=["salary","dailyHours","otRate"].includes(i.dataset.f)?Number(i.value)||0:i.value;
+      });
+      const defs={otRate:Number(val("pd_ot"))||1.5,daysPerMonth:Number(val("pd_days"))||26,
+        graceMin:Number(val("pd_grace"))||0,deductShort:val("pd_short")==="yes"};
+      await mutate(c=>{c.settings.pay=per;c.settings.payDefaults=defs});
+      toast("Pay and hours saved","ok");
+    } break;
     case "vfilter": VFILTER=id||""; VIEW="voice"; closeSheet(); render(); break;
     case "newnote": noteSheet(); break;
     case "savenote": await saveNote(); break;
@@ -1598,14 +1825,15 @@ const val=id=>{const e=document.getElementById(id);return e?e.value.trim():""};
 async function saveUpdate(id){
   const t=CORE.tasks.find(x=>x.id===id); if(!t)return;
   const status=val("u_status"), comment=val("u_comment");
-  if(!comment)return toast("Add a comment describing what moved.");
+  const fu=val("u_fu");
+  const pastTarget=fu&&t.deadline&&fu>t.deadline;
+  if(!comment){
+    if(status!=="Completed")return toast("Add a comment — only Completed can go in without one.");
+    if(pastTarget)return toast("The follow-up is after the target completion date. Say why in the comment.");
+  }
+  if(fu&&fu<today())return toast("Follow-up date can't be in the past.");
   const u={at:iso(now()),by:ME,status,comment};
-  const et=val("u_end");
-  if(et){const d=new Date(today()+"T"+et+":00"); if(d>now())return toast("Completion time can't be in the future."); u.endTime=iso(d)}
-  const fu=val("u_fu"); if(fu){if(fu<today())return toast("Follow-up date can't be in the past."); u.followUp=fu}
-  ["delay","issues","next"].forEach(k=>{const v=val("u_"+k); if(v)u[k]=v});
-  const li=val("u_link"); if(li)u.linkIssue=li;
-  const pri=val("u_pri"); if(pri&&pri!==t.priority)u.priority=pri;
+  if(fu)u.followUp=fu;
   let cs=null;
   if(document.querySelector('#u_toggles input[data-blk="blk_case"]').checked){
     const hear=val("c_hear"); if(hear&&hear<today())return toast("Next hearing date can't be in the past.");
@@ -1638,7 +1866,7 @@ async function saveUpdate(id){
   const nn=now(); u.late=(nn.getHours()*60+nn.getMinutes())>(eh*60+em);
   await mutate(c=>{if(note){c.notes=c.notes||[];c.notes.push(note)}
     const x=c.tasks.find(y=>y.id===id); x.log.push(u); x.status=status;
-    if(u.followUp)x.followUp=u.followUp; if(u.priority)x.priority=u.priority;
+    if(u.followUp)x.followUp=u.followUp;
     if(cs){
       x.case=cs; if(x.type==="General")x.type="Legal case";
       c.settings.caseOptions=c.settings.caseOptions||{};
@@ -1651,7 +1879,7 @@ async function saveUpdate(id){
       addo("statuses",cs.current);addo("actions",cs.nextAction);
     }
     if(u.photo&&x.type==="General")x.type="Field visit";
-    if(status==="Completed"){x.completedAt=u.endTime||u.at; x.followUp=""}});
+    if(status==="Completed"){x.completedAt=u.at; x.followUp=""}});
   SHOT=null; GPS=null; RAUDIO=null; RDUR=0; closeSheet(); toast("Update posted","ok");
 }
 async function stageDone(id,i){
@@ -1667,15 +1895,6 @@ async function stageDone(id,i){
   const left=stages(CORE.tasks.find(z=>z.id===id)).filter(z=>!z.done).length;
   toast(left?left+" stage(s) to go":"All stages done — post the final update to close it","ok");
   taskSheet(id);
-}
-async function saveHandover(id){
-  const to=val("h_who"), note=val("h_note"), fu=val("h_fu");
-  if(!note)return toast("Write a handover note so the next person can pick it up.");
-  await mutate(c=>{const t=c.tasks.find(x=>x.id===id);
-    t.history=(t.history||[]).concat([t.assignee]);
-    t.log.push({at:iso(now()),by:ME,status:"Reassigned",comment:note,reassignTo:to,followUp:fu||""});
-    t.assignee=to; t.status="Reassigned"; if(fu)t.followUp=fu});
-  closeSheet(); toast("Handed to "+nameOf(to),"ok");
 }
 async function saveFields(id){
   const t0=CORE.tasks.find(x=>x.id===id);

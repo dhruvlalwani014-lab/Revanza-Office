@@ -27,7 +27,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export const VERSION = '1.10.0';
+export const VERSION = '1.11.0';
 
 /* ============================================================ responses */
 
@@ -316,9 +316,12 @@ const STATEMENTS = [
     priority text DEFAULT 'Medium', deadline text DEFAULT '', status text DEFAULT 'Not started',
     follow_up text DEFAULT '', created_at timestamptz DEFAULT now(), completed_at timestamptz,
     case_json jsonb, stages_json jsonb DEFAULT '[]', history_json jsonb DEFAULT '[]',
-    links_json jsonb DEFAULT '[]', archived boolean DEFAULT false)`,
+    links_json jsonb DEFAULT '[]', archived boolean DEFAULT false,
+    category text DEFAULT '')`,
   // Migration for databases created before 1.7.0 — idempotent, safe every boot.
   `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS archived boolean DEFAULT false`,
+  // Task category (Legal / Follow up / Others) — added in 1.11.0.
+  `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS category text DEFAULT ''`,
   `CREATE TABLE IF NOT EXISTS updates (
     id bigserial PRIMARY KEY, task_id text NOT NULL, seq int NOT NULL,
     at timestamptz NOT NULL DEFAULT now(), author text, status text, comment text,
@@ -465,6 +468,7 @@ async function loadBoard() {
       title: t.title,
       desc: t.detail || '',
       type: t.type,
+      category: t.category || '',
       assignee: t.assignee,
       assigner: t.assigner,
       priority: t.priority,
@@ -557,6 +561,7 @@ async function saveBoard(next, expectRev, actor) {
     const caseJson = t.case ? JSON.stringify(t.case) : null;
     const res = await sql`UPDATE tasks SET no = ${t.no}, property = ${t.property || ''},
       title = ${t.title}, detail = ${t.desc || ''}, type = ${t.type || 'General'},
+      category = ${t.category || ''},
       assignee = ${t.assignee}, assigner = ${t.assigner}, priority = ${t.priority || 'Medium'},
       deadline = ${t.deadline || ''}, status = ${t.status}, follow_up = ${t.followUp || ''},
       completed_at = ${t.completedAt || null}, case_json = ${caseJson},
@@ -565,10 +570,10 @@ async function saveBoard(next, expectRev, actor) {
       links_json = ${JSON.stringify(t.links || [])} WHERE id = ${t.id}`;
 
     if (!res.rowCount) {
-      await sql`INSERT INTO tasks (id, no, property, title, detail, type, assignee, assigner,
+      await sql`INSERT INTO tasks (id, no, property, title, detail, type, category, assignee, assigner,
         priority, deadline, status, follow_up, created_at, case_json, stages_json, history_json, links_json)
         VALUES (${t.id}, ${t.no}, ${t.property || ''}, ${t.title}, ${t.desc || ''},
-        ${t.type || 'General'}, ${t.assignee}, ${t.assigner}, ${t.priority || 'Medium'},
+        ${t.type || 'General'}, ${t.category || ''}, ${t.assignee}, ${t.assigner}, ${t.priority || 'Medium'},
         ${t.deadline || ''}, ${t.status}, ${t.followUp || ''}, now(), ${caseJson},
         ${JSON.stringify(t.stages || [])}, ${JSON.stringify(t.history || [])},
         ${JSON.stringify(t.links || [])}) ON CONFLICT (id) DO NOTHING`;
@@ -826,6 +831,8 @@ export async function GET(request) {
 
     if (action === 'staff') {
       await ensureSchema();
+      // The list of names never goes out to a stranger — sign-in is by number now.
+      await currentUser(request);
       const { rows } = await q('SELECT id, name, role, note FROM staff WHERE active ORDER BY created_at');
       return json({ ok: true, staff: rows, version: VERSION });
     }
@@ -862,11 +869,16 @@ const ALLOWED_MEDIA = [
   'image/jpeg',
   'image/png',
   'image/webp',
+  'image/heic',
   'audio/webm',
   'audio/mp4',
   'audio/ogg',
   'audio/mpeg',
-  'application/pdf'
+  'application/pdf',
+  // Court orders and case papers can come as a Word file or plain text.
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain'
 ];
 
 export async function POST(request) {
@@ -876,11 +888,27 @@ export async function POST(request) {
 
     if (action === 'signIn') {
       await ensureSchema();
-      const { rows } = await sql`SELECT * FROM staff WHERE id = ${String(body.who || '')} AND active`;
-      const person = rows[0];
+      let person = null;
+      if (body.phone) {
+        // Match on the last ten digits, so +91, spaces and dashes all work.
+        const digits = String(body.phone).replace(/\D/g, '').slice(-10);
+        if (digits.length === 10) {
+          const { rows } = await q(
+            `SELECT * FROM staff WHERE active
+               AND right(regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g'), 10) = $1`,
+            [digits]
+          );
+          person = rows[0] || null;
+        }
+      } else if (body.who) {
+        const { rows } = await sql`SELECT * FROM staff WHERE id = ${String(body.who)} AND active`;
+        person = rows[0] || null;
+      }
       await new Promise((r) => setTimeout(r, 250));
+      // One message for both failures, so the screen can't be used to find out
+      // whose number is on the board.
       if (!person || !(await checkPin(String(body.pin || ''), person.pin_hash))) {
-        throw new HttpError(401, 'Wrong PIN.');
+        throw new HttpError(401, 'That number and PIN do not match.');
       }
       return json({
         ok: true,
@@ -959,6 +987,26 @@ export async function POST(request) {
       const archived = body.archived !== false; // defaults to archiving
       const res = await sql`UPDATE tasks SET archived = ${archived} WHERE id = ${id}`;
       if (!res.rowCount) throw new HttpError(404, 'That task is not on the board.');
+      await setSetting('rev', Number(await getSetting('rev', 0)) + 1);
+      const data = await loadBoard();
+      return json({ ok: true, rev: data.rev, data });
+    }
+
+    // Delete a task outright. Only the owner or the person who assigned it may do
+    // this, and it is the one deliberate exception to append-only history: the task
+    // and everything posted against it are removed together.
+    if (action === 'deleteTask') {
+      await ensureSchema();
+      const me = await currentUser(request);
+      const id = String(body.id || '');
+      if (!id) throw new HttpError(400, 'No task was named.');
+      const { rows } = await sql`SELECT assigner FROM tasks WHERE id = ${id}`;
+      if (!rows.length) throw new HttpError(404, 'That task is not on the board.');
+      if (me.role !== 'Owner' && rows[0].assigner !== me.id) {
+        throw new HttpError(403, 'Only the owner or the person who assigned a task can delete it.');
+      }
+      await sql`DELETE FROM updates WHERE task_id = ${id}`;
+      await sql`DELETE FROM tasks WHERE id = ${id}`;
       await setSetting('rev', Number(await getSetting('rev', 0)) + 1);
       const data = await loadBoard();
       return json({ ok: true, rev: data.rev, data });
